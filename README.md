@@ -178,28 +178,46 @@ If training is added later, define a labeling protocol rather than using reviewe
 
 The commands below are based on inspected official documentation/source. They have **not** been executed as part of writing this README. Check the installed version's `--help`; model availability and upstream APIs can change.
 
-### 5.1 Install a development copy
+### 5.1 Install AgentDojo as a dependency (recommended)
 
-Use Python 3.10 or newer, as specified by the inspected [project configuration][pyproject]. The following macOS/Linux commands clone upstream for initial exploration; keep the eventual team submission in a team-controlled repository or fork.
+Start with **pip installation in the team's own repository**. The official [quickstart][repo] uses `pip install agentdojo`. Developing our policy does not inherently require modifying upstream source: AgentDojo supports custom pipeline components and benchmarking functions. [Pipeline documentation][pipeline]
+
+Use Python 3.10 or newer, as specified by the inspected [project configuration][pyproject], and check compatibility with the release selected by the team. Run these macOS/Linux commands inside the team project directory:
 
 ```bash
-git clone https://github.com/ethz-spylab/agentdojo.git
-cd agentdojo
-
 python3 -m venv .venv
 source .venv/bin/activate
-python -m pip install -e .
+python -m pip install agentdojo
 
-git rev-parse HEAD
 python -m agentdojo.scripts.benchmark --help
+python -c "from importlib.metadata import version; print(version('agentdojo'))"
+# 0.1.35
 ```
 
-Record the commit hash. Configure the API credentials for your chosen model provider locally; never commit keys or log them. Choose an accessible model from the installed runner's supported options:
+Pin the printed version in the team's dependency file, for example `agentdojo==<INSTALLED_VERSION>` in `requirements.txt` (replace the placeholder with the actual value). All six members should install from that file:
+
+```bash
+python -m pip install -r requirements.txt
+```
+
+Record the Python version, dependency lock or resolved dependency versions, AgentDojo package version, and benchmark suite version in experiment metadata. The package version and benchmark version are different settings. The upstream API can change; use documentation and interfaces matching the pinned release.
+
+Configure API credentials for the selected provider locally; never commit keys or log them. Choose an accessible model from the installed runner's supported options:
 
 ```bash
 # Replace this placeholder before running.
 export AGENTDOJO_MODEL="YOUR_SUPPORTED_MODEL_ID"
 ```
+
+#### When a clone is useful
+
+| Installation approach | Use case |
+| --- | --- |
+| **Pip package in the team repository** | Default: run baselines and build our policy, reviewer, executor and runner as project-owned code |
+| Clone for reference only | Optional: inspect upstream source, examples and tests locally; this does not change the installed package |
+| Clone plus editable installation | Only when a concrete integration limitation or upstream bug requires source changes |
+
+If upstream changes become necessary, use a team-controlled fork and record both its base commit and our modifications. From the activated project environment, install the chosen checkout using `python -m pip install -e /absolute/path/to/agentdojo`. Record its commit with `git -C /absolute/path/to/agentdojo rev-parse HEAD`. This replaces the package used by that environment; it is an alternative development workflow, not an extra required setup step. Do not manually edit files in `.venv/site-packages`.
 
 ### 5.2 Run one clean task
 
@@ -240,13 +258,29 @@ Open the produced files and answer:
 
 Do not reconstruct a desirable trace. Record what the model actually did.
 
-### 5.4 Locate and instrument execution
+### 5.4 Implement and instrument our execution component
+
+Keep our implementation in the team repository. `ToolsExecutor` executes proposed tools and `ToolsExecutionLoop` handles repeated tool use. Build an approval-aware execution component in `src/approval_policy/gate/executor.py`, and compose it into our custom pipeline **in place of the default tool executor**. Follow the actual interfaces and message types in the pinned AgentDojo release. Custom pipeline components use AgentDojo's `BasePipelineElement` interface. [Pipeline documentation][pipeline]
+
+To locate the pip-installed source for inspection without assuming a local `src/agentdojo` checkout:
 
 ```bash
-rg -n 'class ToolsExecutor|class ToolsExecutionLoop' src/agentdojo
+python -c "import agentdojo; print(list(agentdojo.__path__))"
 ```
 
-`ToolsExecutor` and `ToolsExecutionLoop` are documented pipeline components. Insert checks before each individual execution, including calls inside batches. First log `proposed`, `approved`, and `executed`, with all calls approved, and confirm the original task still runs. [Pipeline documentation][pipeline]
+Inspect `ToolsExecutor` and `ToolsExecutionLoop` there or in matching upstream source. Keep edits in our project-owned adapter unless an upstream change is demonstrably necessary.
+
+The approval-aware executor must:
+
+- Check **each individual call**, including every call in a batch, before any execution.
+- Execute only the exact approved call and arguments.
+- Return a correctly associated tool response for each denied call.
+- Maintain per-task review state and allow the agent to continue or replan.
+- Record proposed calls, decisions and actual execution.
+
+First implement an all-approve path and confirm the original task still runs. Then add blocking and review logic incrementally.
+
+**CLI versus custom runner:** the stock `python -m agentdojo.scripts.benchmark` commands in this section run upstream pipelines. Creating `policy.py` does not automatically register or activate it. Implement `scripts/run_experiment.py` to construct our pipeline and call AgentDojo's benchmarking functions using the pinned release's API. Do not assume an arbitrary custom `--defense` value works. The official documentation describes benchmarking custom pipelines through `agentdojo.benchmark`. [Custom pipeline guidance][pipeline]
 
 Then add this deliberately narrow smoke-test policy:
 
@@ -649,24 +683,37 @@ Speaking time alone is not evidence of equal contribution. Prepare everyone for 
 
 ## 14. Proposed repository layout
 
-The following is a target layout, **not a list of files already implemented**. If working inside an upstream fork, adapt module locations to its package structure instead of creating conflicting packages.
+The following is a target layout, **not a list of files already implemented**. AgentDojo is an external dependency; the team repository contains our implementation and experiment assets.
 
 ```text
-README.md
-configs/                 # Models, reviewer, policy, k grid and seeds
-manifests/               # Development/final task and attack selections
-src/gate/                # Interception, budgets and execution control
-src/policy/              # Authorization, semantic assessment, allocation
-src/reviewer/            # Permitted context, LLM review and parsing
-src/evaluation/          # Benchmark adapter, scoring and metrics
-src/observability/       # Usage ledger and trajectory analysis
-tests/                   # Enforcement, budget and leakage checks
-runs/                    # Raw traces, scores and configuration hashes
-analysis/                # Curves, tables, ablations and failure evidence
-report/                  # Report, slides and contribution appendix
+approval-policy-project/
+├── README.md
+├── pyproject.toml               # Team package configuration for the src layout
+├── requirements.txt             # Pinned dependencies, including AgentDojo
+├── configs/                     # Models, reviewer, policy, k grid and seeds
+├── manifests/                   # Development/final task and attack selections
+├── src/
+│   └── approval_policy/
+│       ├── __init__.py
+│       ├── pipeline.py          # Compose AgentDojo with our execution component
+│       ├── gate/
+│       │   ├── executor.py      # Per-call enforcement and denial feedback
+│       │   └── budget.py        # Per-task review-budget accounting
+│       ├── policy/              # Authorization, semantic assessment, allocation
+│       ├── reviewer/            # Permitted context, LLM review and parsing
+│       ├── evaluation/          # Benchmark adapter, scoring and metrics
+│       └── observability/       # Usage ledger and trajectory analysis
+├── scripts/
+│   └── run_experiment.py        # Construct custom pipeline and invoke benchmark
+├── tests/                       # Enforcement, budget and leakage checks
+├── runs/                        # Raw traces, scores and configuration hashes
+├── analysis/                    # Curves, tables, ablations and failure evidence
+└── report/                      # Report, slides and contribution appendix
 ```
 
-Do not invent custom execution commands before implementing the adapter. Once it exists, add exact reproducible commands for all three strategies, the frozen benchmark version, every reported k and replicate, and result aggregation.
+Add package initialization files where required. Configure the team's `src` package in `pyproject.toml` before installing it with `python -m pip install -e .`. That later command installs **our team project** in editable mode; it does not require cloning or editing AgentDojo.
+
+Do not invent custom execution commands before implementing the adapter. Once it exists, add exact reproducible commands for all three strategies, the frozen benchmark version, every reported k and replicate, and result aggregation. Use the same approval-aware executor for full-approve, full-escalate and our policy so comparisons share enforcement and logging code.
 
 ## 15. Milestones and deliverables
 
@@ -763,7 +810,7 @@ TA listed in the brief: **Deng Yanchen — ycdeng@ntu.edu.sg**. No contact has b
 - [Workspace v1 user-task source][workspace-task]
 - [Python requirements and package configuration][pyproject]
 
-Upstream links point to evolving documentation or `main`. Record the actual checked-out commit and replace implementation references with commit-specific links when the team freezes its version.
+Upstream links point to evolving documentation or `main`. Record the pinned package release (or the exact commit for an editable checkout), and use matching release- or commit-specific implementation links when the team freezes its version.
 
 [brief]: #course-brief
 [repo]: https://github.com/ethz-spylab/agentdojo
