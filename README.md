@@ -2,8 +2,8 @@
 
 **AI6101 Introduction to AI and AI Ethics · Group Project 1**  
 **Proposed implementation:** an authorization-aware, budget-aware approval gate for AgentDojo.  
-**Status:** planning and implementation guide. No project code, benchmark results, or performance improvements are claimed by this README.  
-**Prepared:** 21 September 2026.
+**Status:** Gemini clean-task runner implemented; approval gate, policies and evaluation remain planned. No benchmark results or performance improvements are claimed.
+**Setup updated:** 12 October 2026.
 
 > **Research question:** Can explicit authorization checks and selective review of resolvable uncertainty improve safe task completion under a limited human-review budget?
 >
@@ -176,38 +176,32 @@ If training is added later, define a labeling protocol rather than using reviewe
 
 **Milestone:** run one official lookup task, inspect its trace, and prove a denied call cannot execute. No claim of benchmark superiority is expected at this stage.
 
-The commands below are based on inspected official documentation/source. They have **not** been executed as part of writing this README. Check the installed version's `--help`; model availability and upstream APIs can change.
+### 5.1 Install and configure your Gemini API key
 
-### 5.1 Install AgentDojo as a dependency (recommended)
-
-Start with **pip installation in the team's own repository**. The official [quickstart][repo] uses `pip install agentdojo`. Developing our policy does not inherently require modifying upstream source: AgentDojo supports custom pipeline components and benchmarking functions. [Pipeline documentation][pipeline]
-
-Use Python 3.10 or newer, as specified by the inspected [project configuration][pyproject], and check compatibility with the release selected by the team. Run these macOS/Linux commands inside the team project directory:
+Run these commands from this repository (macOS/Linux). If `.venv` already exists, skip its creation:
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-python -m pip install agentdojo
-
-python -m agentdojo.scripts.benchmark --help
-python -c "from importlib.metadata import version; print(version('agentdojo'))"
-# 0.1.35
-```
-
-Pin the printed version in the team's dependency file, for example `agentdojo==<INSTALLED_VERSION>` in `requirements.txt` (replace the placeholder with the actual value). All six members should install from that file:
-
-```bash
 python -m pip install -r requirements.txt
+# First setup only: do not overwrite an existing .env.
+cp -n .env.example .env
 ```
 
-Record the Python version, dependency lock or resolved dependency versions, AgentDojo package version, and benchmark suite version in experiment metadata. The package version and benchmark version are different settings. The upstream API can change; use documentation and interfaces matching the pinned release.
+Open `.env` in your editor and replace `replace_with_your_key` with your **Google AI Studio Gemini API key**. Keep it local; `.env` and benchmark traces are ignored by Git. Do not paste your key into chat, source code or terminal commands. Existing shell environment variables take precedence over `.env`.
 
-Configure API credentials for the selected provider locally; never commit keys or log them. Choose an accessible model from the installed runner's supported options:
+The runner explicitly creates `genai.Client(api_key=..., vertexai=False)`, following Google's [API-key setup](https://ai.google.dev/gemini-api/docs/api-key). It needs no OpenAI key, GCP project/location or `gcloud` login. **AgentDojo 0.1.35's stock Gemini CLI instead constructs a Vertex AI client**, so use the project runner below for your API key. Its `--model-id` flag is for local models, not a Gemini override.
 
 ```bash
-# Replace this placeholder before running.
-export AGENTDOJO_MODEL="YOUR_SUPPORTED_MODEL_ID"
+# Offline: validates imports, pipeline construction and the selected task.
+python scripts/run_gemini.py --check
+# Online: lists model IDs accessible through your API key.
+python scripts/run_gemini.py --list-models
 ```
+
+`.env.example` uses `gemini-3.8-flash` as an example. Check availability with `--list-models`; set `GEMINI_MODEL` in `.env` to the appropriate text/tool-calling model, without the `models/` prefix. Listing a model does not prove multi-turn tool-call compatibility with this older AgentDojo adapter. Run one task before a sweep. The project adapter in `scripts/gemini_adapter.py` preserves original Gemini response parts, including thought signatures, across tool calls. AgentDojo 0.1.35’s built-in adapter discards these signatures, causing Gemini 3 multi-turn requests to fail. See [Google’s thinking documentation](https://ai.google.dev/gemini-api/docs/thinking). Signatures stay in episode-local provider state; tool execution remains under AgentDojo’s control.
+
+`requirements.txt` pins AgentDojo and the directly used SDK/configuration libraries to versions installed locally. It is not a full transitive dependency lock. Record `python --version`, `python -m pip freeze`, model ID and benchmark version with final experiments. Python 3.10+ is required upstream; local setup verification used Python 3.14.
 
 #### When a clone is useful
 
@@ -230,14 +224,29 @@ search_calendar_events(query="Networking event", date="2024-05-26")
 Its strict utility check verifies expected attendee addresses in the output and unchanged environment state. Version-specific overrides may exist: verify the loaded task definition when freezing the benchmark. [Task source][workspace-task]
 
 ```bash
-python -m agentdojo.scripts.benchmark \
-  --suite workspace \
-  --user-task user_task_0 \
-  --model "$AGENTDOJO_MODEL" \
-  --logdir runs/first_clean_run
+python scripts/run_gemini.py
+# Optional overrides:
+python scripts/run_gemini.py --model gemini-3.8-flash \
+  --suite workspace --user-task user_task_0 \
+  --benchmark-version v1.2.2 --logdir runs/first_clean_run
 ```
 
-Omitting `--attack` selects a clean run; omitting `--defense` selects no built-in defense in the inspected [runner][runner]. Record the actual benchmark version used, not just the package version. For final experiments, pass the course-approved `--benchmark-version` explicitly.
+This runs **one clean task with the stock execution pipeline**, makes billable/quota-consuming API calls and saves upstream traces. It does not activate an approval gate or reviewer. The default benchmark version is explicitly `v1.2.2`; confirm the course-approved version before final evaluation. Existing results may be cached; use `--force-rerun` or a fresh `--logdir` for a new execution.
+
+The runner’s local `--check` and mocked signature round-trip regression test pass. A live `gemini-3.8-flash` verification attempt returned Google `503 UNAVAILABLE` (high demand), so end-to-end completion remains unverified. AgentDojo can print utility=False/security=True after skipping an API failure; inspect the trace’s `error` field and do not count that as a valid completed benchmark result.
+
+Run the offline regression test with `python -m unittest discover -s tests -v`.
+
+| Problem | Next step |
+| --- | --- |
+| Missing key | Edit `.env` at the repository root; check whether a shell variable overrides it. |
+| 400/401/403 authentication error | Check the key, API restrictions and access in Google AI Studio. |
+| 404 model not found | Use `--list-models`, then update `GEMINI_MODEL`. |
+| 503 high demand | Retry later with `--force-rerun` or a fresh log directory; check the trace error before interpreting scores. |
+| 429 quota/rate limit | Check the project's quota and billing; avoid starting a sweep until one task succeeds. |
+| 400 missing `thought_signature` | Use the updated project runner and `gemini_adapter.py`, then rerun with `--force-rerun`. The adapter preserves signed response parts instead of rebuilding them. |
+| Tool schema or conversation error | Preserve the traceback and model ID; model listing alone does not validate the adapter. |
+| No new API activity | Use a fresh log directory or `--force-rerun` if a previous result was cached. |
 
 ### 5.3 Inspect the trace
 
@@ -280,7 +289,7 @@ The approval-aware executor must:
 
 First implement an all-approve path and confirm the original task still runs. Then add blocking and review logic incrementally.
 
-**CLI versus custom runner:** the stock `python -m agentdojo.scripts.benchmark` commands in this section run upstream pipelines. Creating `policy.py` does not automatically register or activate it. Implement `scripts/run_experiment.py` to construct our pipeline and call AgentDojo's benchmarking functions using the pinned release's API. Do not assume an arbitrary custom `--defense` value works. The official documentation describes benchmarking custom pipelines through `agentdojo.benchmark`. [Custom pipeline guidance][pipeline]
+**CLI versus custom runner:** `scripts/run_gemini.py` only supplies Gemini API-key authentication for a clean upstream pipeline. It does not implement the project approval policy. the stock `python -m agentdojo.scripts.benchmark` commands in this section run upstream pipelines. Creating `policy.py` does not automatically register or activate it. Implement `scripts/run_experiment.py` to construct our pipeline and call AgentDojo's benchmarking functions using the pinned release's API. Do not assume an arbitrary custom `--defense` value works. The official documentation describes benchmarking custom pipelines through `agentdojo.benchmark`. [Custom pipeline guidance][pipeline]
 
 Then add this deliberately narrow smoke-test policy:
 
@@ -320,7 +329,7 @@ Do not wait for an LLM to spontaneously attempt a dangerous operation to test en
 
 Next select one relevant official injection objective and attack supported by the installed version. Compare all-approve with the smoke-test policy on the same task/attack configuration. The runner supports `--attack` and `--injection-task`; explicitly select an injection task instead of accidentally evaluating every objective. [Runner options][runner]
 
-This command is a **template with required placeholders**, not a verified task/attack pairing:
+The following stock-CLI command is a **template for separately configured upstream providers**, not the Gemini API-key runner or a verified task/attack pairing. Set `AGENTDOJO_MODEL` to a supported CLI model value first. Attack support still needs to be added to our Gemini runner:
 
 ```bash
 export AGENTDOJO_ATTACK="REPLACE_WITH_SUPPORTED_ATTACK"
