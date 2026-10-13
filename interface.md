@@ -7,6 +7,7 @@ The gate intercepts tool calls, applies a policy to decide approval/denial/escal
 and optionally consults a reviewer for escalated calls.
 
 ## Repository Structure
+```plain
 6101-agent-harness
 ├── src/
 │ ├── types.py # Core type definitions
@@ -21,6 +22,7 @@ and optionally consults a reviewer for escalated calls.
 ├── tests/ # Unit tests (18 tests)
 ├── configs/ # Experiment configs (empty)
 └── conftest.py # Pytest fixtures
+```
 ## Components
 
 ### 1. `types.py`

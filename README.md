@@ -106,7 +106,7 @@ he `k` parameter in `build_pipeline` controls the escalation budget:
 - Budget resets at the start of each task
 
 ## Project Structure
-
+```plain
 ├── src/
 │ ├── types.py # Core type definitions
 │ ├── gate.py # GateElement - tool approval gate
@@ -118,7 +118,7 @@ he `k` parameter in `build_pipeline` controls the escalation budget:
 ├── tests/ # Unit tests (18 tests)
 ├── configs/ # Experiment configs
 └── conftest.py # Pytest fixtures
-
+```
 
 ## Timeline
 
