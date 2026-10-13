@@ -42,7 +42,7 @@ ollama serve
 pytest test/ -v
 ```
 
-Expected: 18 tests passing.
+Expected: 23 tests passing.
 
 ### Building a Pipeline
 ```python
@@ -107,33 +107,27 @@ he `k` parameter in `build_pipeline` controls the escalation budget:
 
 ## Project Structure
 ```plain
+6101-agent-harness
 ├── src/
 │ ├── types.py # Core type definitions
 │ ├── gate.py # GateElement - tool approval gate
 │ ├── budget.py # BudgetResetElement - per-task budget reset
+│ ├── policy.py # Policy interface (deprecated, use types.Policy)
+│ ├── reviewer.py # Reviewer interface (deprecated, use types.Reviewer)
 │ ├── risk_based_policy.py # RiskBasedPolicy - YAML-driven policy
 │ ├── tool_risk.py # YAML loader for tool risk metadata
 │ ├── tool_risk_metadata.yaml # Tool risk configuration
 │ └── pipeline.py # build_pipeline factory
-├── tests/ # Unit tests (18 tests)
-├── configs/ # Experiment configs
+├── tests/ # Unit tests (23 tests)
+├── configs/ # Experiment configs (empty)
 └── conftest.py # Pytest fixtures
 ```
 
-## Timeline
-
-- **Oct 12**: Interface + repo setup
-- **Oct 13**: Gate draft (current)
-- **Oct 14**: Merge + test hard deadline
-- **Oct 15-16**: Integrate policy/reviewer v1
-- **Oct 19-22**: Sweep
-- **Oct 23-26**: Fresh clone testing
-
 ## Changelog
 
-### v0.1.0 (Oct 13, 2026)
+### v0.2.0 (Oct 14, 2026)
 
 - Initial gate implementation
 - RiskBasedPolicy with YAML metadata
 - Pipeline factory with BudgetReset
-- 18 unit tests passing
+- 23 unit tests passing

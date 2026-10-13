@@ -19,7 +19,7 @@ and optionally consults a reviewer for escalated calls.
 │ ├── tool_risk.py # YAML loader for tool risk metadata
 │ ├── tool_risk_metadata.yaml # Tool risk configuration
 │ └── pipeline.py # build_pipeline factory
-├── tests/ # Unit tests (18 tests)
+├── tests/ # Unit tests (23 tests)
 ├── configs/ # Experiment configs (empty)
 └── conftest.py # Pytest fixtures
 ```
@@ -150,9 +150,9 @@ Expected: 18 tests passing.
 ```
 ## Changelog
 
-### v0.1.0 (Oct 13, 2026)
+### v0.2.0 (Oct 13, 2026)
 
 - Initial gate implementation
 - RiskBasedPolicy with YAML metadata
 - Pipeline factory with BudgetReset
-- 18 unit tests passing
+- 23 unit tests passing
