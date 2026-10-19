@@ -63,7 +63,7 @@ class GateElement(BasePipelineElement):
                 args=tool_call["args"],
                 tool_metadata=meta,
                 trajectory=messages,
-                user_task_text=extra_args.get("user_task", ""),
+                user_task_text=extra_args.get("user_task") or query,
                 k_remaining=self.k_remaining,
             )
 

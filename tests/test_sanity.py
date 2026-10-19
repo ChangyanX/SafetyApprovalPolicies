@@ -1,6 +1,4 @@
 # tests/test_sanity.py
-import sys
-sys.path.insert(0, r"E:\6101\6101-agent-harness")
 
 from src.types import Decision, GateOutput, Policy, GateInput
 

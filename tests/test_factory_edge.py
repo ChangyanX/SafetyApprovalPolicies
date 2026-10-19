@@ -1,6 +1,4 @@
 # tests/test_factory_edge.py
-import sys
-sys.path.insert(0, r"E:\6101\6101-agent-harness")
 
 from unittest.mock import MagicMock
 from src.pipeline import build_pipeline
