@@ -1,4 +1,6 @@
 # tests/test_agentdojo_sanity.py
+import sys
+sys.path.insert(0, r"E:\6101\6101-agent-harness")
 
 from agentdojo.agent_pipeline import AgentPipeline
 from src.pipeline import build_pipeline

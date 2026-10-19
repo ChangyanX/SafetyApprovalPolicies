@@ -1,11 +1,5 @@
 # 6101 Agent Harnesses
 
-## Local LLM-Judge
-
-Independent risk assessment (no approval/budget decisions): see
-[LLM-Judge configuration, integration and evaluation](docs/llm_judge.md).
-Use the dedicated Conda environment `ai6101-judge`.
-
 Safety gate for LLM agents using AgentDojo framework. Intercepts tool calls and applies
 a policy to approve/deny/escalate based on tool risk metadata.
 
@@ -26,8 +20,8 @@ cd 6101-agent-harness
 ```
 #### Create conda environment
 ```bash
-conda env create -f environment.yml
-conda activate ai6101-judge
+conda create -n agent python=3.11
+conda activate agent
 ```
 #### install dependencies
 ```bash
@@ -45,10 +39,10 @@ ollama serve
 ## Usage
 ### Running Tests
 ```bash
-pytest tests/ -v
+pytest test/ -v
 ```
 
-Offline tests require no model service. Real-model integration tests are opt-in; see docs/llm_judge.md.
+Expected: 23 tests passing.
 
 ### Building a Pipeline
 ```python
@@ -87,7 +81,7 @@ client=client,
 
 ### Running on Agentdojo
 ```python
-from agentdojo.agent_pipeline import AgentPipeline
+from agentdojo import AgentPipeline
 ```
 
 ### Use the built pipeline with AgentDojo's task suite
@@ -124,8 +118,8 @@ he `k` parameter in `build_pipeline` controls the escalation budget:
 │ ├── tool_risk.py # YAML loader for tool risk metadata
 │ ├── tool_risk_metadata.yaml # Tool risk configuration
 │ └── pipeline.py # build_pipeline factory
-├── tests/ # Offline regression tests and opt-in model smoke test
-├── docs/ # Judge integration and evaluation guide
+├── tests/ # Unit tests (23 tests)
+├── configs/ # Experiment configs (empty)
 └── conftest.py # Pytest fixtures
 ```
 

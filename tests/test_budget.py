@@ -1,3 +1,5 @@
+import sys
+sys.path.insert(0, r"E:\6101\6101-agent-harness")
 
 from src.budget import BudgetResetElement
 

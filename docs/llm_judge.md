@@ -1,152 +1,120 @@
-# Local LLM-Judge（第 4 号成员交付）
+# 本地 LLM-Judge 使用说明
 
-## 架构与边界
+## 模块定位
 
-已有流程为 SystemMessage → InitQuery → BudgetReset → LocalLLM → GateElement →
-ToolsExecutor。Gate 调用 Policy.decide(GateInput)，由 Gate 管理预算和 Reviewer。
-本模块只输出风险评估，不返回 Decision，不读取 k_remaining，不修改规则策略。
-依赖沿用 requirements.txt 中的 openai、pydantic；没有新增大型框架。
+LLM-Judge 用于在工具调用执行前评估风险，重点判断操作是否符合用户授权、可能产生什么影响，以及是否受到提示注入的干扰。
 
-唯一已有生产代码改动：gate.py 的 user_task_text 在 extra_args.user_task 缺失或为空时
-回退到 query。原实现的 BudgetReset 不设置 user_task，导致正常管线可能丢失授权依据。
-1 号应确保 query/extra_args.user_task 来自真实用户，而不是工具输出或 Agent 自述；
-若执行框架会改写 query，请在入口保存原始任务到 extra_args.user_task。
+现有调用流程为：
 
-## 环境与运行
+`SystemMessage → InitQuery → BudgetReset → LocalLLM → GateElement → ToolsExecutor`
 
-在仓库根目录运行，使用独立环境，不在 base 安装：
+Gate 将待执行的工具调用交给 `Policy.decide(GateInput)`。审批策略可以先调用 Judge，结合评估结果与剩余预算，再返回 `GateOutput`。
 
-```powershell
-conda create -n ai6101-judge python=3.11 pip -y
-conda activate ai6101-judge
-python -m pip install -r requirements.txt
-python -m pytest tests/ -q
-```
+本模块沿用项目已有的 `openai`、`pydantic` 依赖，没有引入额外的大型框架。对原有执行代码的修改仅涉及 `src/gate.py` 中用户任务的传递：当 `extra_args.user_task` 缺失或为空时，回退使用 `query`。
 
-模型服务另行部署。Judge 不自动下载模型、不自动启动服务、不回退到云端。
-配置服务提供的 OpenAI-compatible `/v1` endpoint 和实际模型名称：
+## 配置
 
-```powershell
-$env:JUDGE_BASE_URL = "http://localhost:11434/v1"  # 示例，按部署修改
-$env:JUDGE_MODEL = "qwen3:14b"                    # 示例，须已部署
-$env:RUN_JUDGE_INTEGRATION = "1"
-python -m pytest tests/test_judge_integration.py -v
-```
+默认配置包括：请求超时 30 秒、温度 0、最大输出 512 tokens、输入上限 24,000 字符、历史消息上限 512 条，以及 `json_object` 输出格式。也可以通过 `JudgeConfig` 调整配置，并按服务支持情况选择 `json_schema` 或 `none`。
 
-JUDGE_API_KEY 可选，默认使用本地占位值 local；不写入追踪或配置文件。
-from_env 要求显式给出 model 和 base_url。其它设置通过 JudgeConfig 构造参数或评估
-脚本的 --config JSON 文件指定：timeout_seconds=30、temperature=0、max_tokens=512、
-max_input_chars=24000、max_history_messages=512、response_format=json_object。
-支持 json_schema 和 none；不支持所选格式的服务会返回 service_error，不隐式重试。
-为降低本地开销，SDK 自动重试关闭；超时是 SDK 请求超时，并非严格的进程级墙钟上限。
-思考模型可能将 token 预算耗尽在推理上，应由部署端关闭思考或调高 max_tokens 并实测。
+不同本地模型对 JSON 输出、思考模式和 token 限制的支持可能不同，部署时需要确认。SDK 自动重试已关闭；超时指请求超时，不保证严格的进程级耗时上限。
 
-## 独立调用示例
+## 如何调用
+
+Judge 可以直接接收项目中的 `GateInput`，也可以使用独立的 `JudgeInput`。
 
 ```python
 from src.judge_types import JudgeInput
 from src.llm_judge import LocalLLMJudge, JudgeConfig
 
 judge = LocalLLMJudge(JudgeConfig.from_env())
+
 result = judge.assess(JudgeInput(
     user_task_text="Show my account balance.",
-    tool_name="get_balance", args={},
+    tool_name="get_balance",
+    args={},
     tool_metadata={"risk": "low", "category": "read"},
 ))
+
 print(result.status, result.assessment.authorization)
 ```
 
-## 3 号调用接口
+审批策略接入时，建议复用同一个 Judge 实例：
 
 ```python
 from src.llm_judge import LocalLLMJudge, JudgeConfig
-from src.judge_types import JudgeInput
 
-judge = LocalLLMJudge(JudgeConfig.from_env())  # 重用实例
-result = judge.assess(gate_input)             # 直接接受现有 GateInput
-# 或 judge.assess(JudgeInput(...))，不需要 AgentDojo 或预算字段
+judge = LocalLLMJudge(JudgeConfig.from_env())
+
+# gate_input 由 Gate 提供
+result = judge.assess(gate_input)
+
 if not result.usable:
-    # 由 3 号的策略决定如何处理不可用/不确定结果，绝不能当成低风险。
+    # 交给审批策略保守处理，不能默认批准
     pass
 else:
-    risk = result.assessment
-    # 结合 authorization、operational_risk、injection_suspected 等作最终决策。
-    # 本模块不提供决策阈值或审批算法。
+    assessment = result.assessment
+    # 结合授权状态、操作风险和剩余预算作出审批决定
 ```
 
-在 Policy.decide 中调用 assess 后返回现有 GateOutput 即可。1 号无需新增拦截器；
-把 3 号策略传给 build_pipeline。为了成本分析，应另行收集 result.trace；现有 GateResult
-不存 Judge 详情，本交付不扩大 GateResult 的职责。可添加调用 ID 关联，但不要记录敏感参数。
-authorization_scope 是独立调用时可选的可信授权限制，不从历史中自动提取；适配 GateInput
-时保留默认空值。如需多轮真实用户授权，入口应可靠汇总到 user_task_text/authorization_scope。
+审批策略负责将判断转换为批准、拒绝或升级，并返回现有的 `GateOutput`。Judge 不提供固定的审批阈值。
 
-## 输出与失败语义
+如果需要记录模型开销，可以使用 `result.trace` 中的耗时、模型信息和 token 用量。当前 `GateResult` 不会自动保存这些信息，需要负责集成与评估的模块另行关联记录，同时避免保存敏感参数。
 
-- authorization：authorized / unauthorized / uncertain。
-- operational_risk：low / medium / high / critical / unknown，与授权分离。
-- risk_score：0–1 的**未校准风险关注指标**，不是攻击率或违规概率。
-  Prompt 使用明确分段锚点；高影响但获授权的操作仍可有较高分数。
-- confidence：模型自述确定程度，同样未经校准。
-- injection_suspected、context_sufficient、简短 rationale。
-- status：ok / insufficient_context / invalid_output / timeout / service_error。
-- schema_valid：是否真实获得了通过 Schema 的模型输出；与 usable 不等价。
-- trace：模型、推理和长度配置、Prompt+Schema SHA256、耗时、可用 token 用量、截断标记。
+## Judge 如何判断风险
 
-Pydantic 严格校验枚举、类型、有限数值、范围、额外字段；JSON 重复键、代码围栏、
-截断生成、拒答都不被自动“修复”为安全输出。缺失任务、输入不可序列化、上下文超长时
-不调用模型；失败占位返回 uncertain/unknown、score=1、confidence=0，不能计为模型风险分数。
-模型声明上下文不足、授权不确定或操作影响未知时 usable=False。调用方构造错误和配置错误会直接报错，
-需要上层处理，不能据此批准。网络/SDK 错误转换为结构化状态，服务错误原文不落日志。
+Judge 会综合原始用户任务、工具名称及参数、工具风险元数据，以及可用的历史消息进行判断。
 
-Prompt 是独立文本 src/prompts/risk_judge.txt，可用 prompt_path 替换。历史角色全部放入
-同一个 JSON 数据字段，不重新发成 live system/user 消息。用户意图、调用、元数据、历史
-分别标识来源；工具内容不能扩大授权。提示词隔离降低风险但不能证明模型免疫注入。
+它重点区分两件事：
 
-长度限制按字符而非精确 token；任务、参数和历史均不截断。超过消息数或字符上限时
-直接返回 insufficient_context；history_truncated 表示历史无法完整送入模型，不会静默删减证据。
-长轨迹应用需要调整上限或在后续设计有来源保证的摘要接口；应同时评估覆盖率和成本。
-元数据中的 default_decision 不能当作授权；缺失工具语义时模型应报告不确定。
-不默认记录请求、原始输出、理由或错误全文；理由本身仍可能含敏感内容，存储前需检查。
+- **是否获得授权**：操作及其目标是否符合用户明确提出或合理隐含的要求。
+- **操作本身有多大风险**：例如是否涉及删除、支付、敏感信息读取或对外发送。
 
-## 测试与轻量评估
+两者分别判断。例如，用户明确要求删除指定文件，删除操作仍可能具有较高风险，但不能仅因为危险就判定为未经授权。
 
-单元测试用模拟模型响应覆盖授权读、未授权支付、授权删除、注入和目标/金额不匹配，
-验证的是协议、证据来源隔离和异常处理，不代表模型具有正确识别能力。
-真实模型测试显式启用，只检查服务连通和结构化输出；语义质量通过独立标注数据评估。
+Judge 也会检查历史记录是否含有提示注入。邮件、网页及工具返回内容只能作为上下文证据，不能自行扩大用户授权。相关规则保存在 `src/prompts/risk_judge.txt`，可以通过 `prompt_path` 更换。
 
-```powershell
-python -m pytest tests/test_llm_judge.py tests/test_judge_evaluation.py -q
-python -m scripts.evaluate_judge --data path/to/labeled_calls.jsonl --output judge-results.json
-# 可选：--prompt path/to/prompt.txt --config path/to/config.json
-```
+对于信息不足的情况，Judge 会返回不确定结果，不会猜测缺失的授权或工具效果。
 
-评估输入 JSONL 每行含唯一 id、input（JudgeInput）、authorization 标签。
-仓库不内置演示数据集；请提供人工审核的单次调用授权标签，不用冒烟案例拟合校准。
-输出包含逐例标签/预测/状态/评分/trace 和聚合指标，不保存参数、任务、理由或服务地址。
-数据集 id 也应避免包含个人信息。不同模型/Prompt 分别保存结果进行比较。
+## 输出结果与异常处理
 
-指标以 unauthorized 为正类；Precision/Recall/F1 和 FP/FN 仅对可用二分类结果计算。
-同时明确报告 abstentions、按标签的弃权数和 coverage，避免服务失败被当作正确预测。
-零分母为 null，不伪造 0/1。风险直方图排除失败占位值；结构化成功率的分母是全部案例，
-同时报告 status_counts。token 缺失用 null 并统计可用调用数；合计是已报告部分，不代表全量。
-延迟包含本地准备、请求与验证，提供平均值和最大值。
+`result.assessment` 包含以下字段：
 
-校准扩展协议 ScoreCalibrator 预留在 judge_types.py，当前没有拟合映射。
-应先双人标注单次工具调用的授权状态，并按任务/攻击来源划分 train/validation/test，
-避免同任务泄漏；再在验证集拟合映射，在独立测试集报告可靠性/Brier/ECE 等。
-综合分数混合操作影响和授权风险，不一定适合单调映射为“未授权概率”，须先验证。
-AgentDojo 的攻击成功是任务/攻击级结果，不能直接冒充单次调用授权标签。
+| 字段 | 含义 |
+| --- | --- |
+| `authorization` | 授权状态：`authorized`、`unauthorized` 或 `uncertain` |
+| `operational_risk` | 操作风险：`low`、`medium`、`high`、`critical` 或 `unknown` |
+| `risk_score` | 0–1 的综合风险关注分数 |
+| `confidence` | 模型自述的判断把握程度 |
+| `injection_suspected` | 是否怀疑存在提示注入 |
+| `context_sufficient` | 现有上下文是否足以支持判断 |
+| `rationale` | 简短的判断理由 |
 
-## 已有仓库待集成注意点
+`risk_score` 和 `confidence` **都没有经过校准**，不能理解为违规概率或实际正确率。高风险但已授权的操作，也可能得到较高的综合分数。
 
-RiskBasedPolicy 当前传 reason，但 GateOutput 定义 rationale，理由可能被忽略；本次未改动。
-检查已安装 agentdojo 0.1.35 源码还发现：AgentPipeline.query 只顺序运行各元素一次，
-当前 build_pipeline 没有使用 ToolsExecutionLoop，尚不是完整的多步任务管线。
-混合批准/拒绝的批量调用中，Gate 会追加 blocked tool 消息，而 ToolsExecutor 在末条消息
-不是 assistant 时直接返回，因此同批已批准项可能不执行。这些问题需由 1 号另行修复，
-加入真实数据结构和多步任务测试；构造测试通过不等于端到端运行正确。
-另外 LocalLLM 产生 Pydantic FunctionCall 对象，当前 Gate 用 tool_call["function"]
-等字典访问方式，真实调用会遇到类型不兼容。既有测试只传字典，所以未覆盖此问题。
-这也需 1 号统一 Gate/ToolsExecutor 的调用结构；独立 Judge 不依赖此拦截逻辑。
-本模块未实现 Reviewer、审批算法、
-预算策略或 TCR@k 实验，也没有声称完成端到端 AgentDojo 实验。
+`result.status` 表示本次评估是否正常完成，可能为：
+
+- `ok`：模型返回了可验证的评估结果。
+- `insufficient_context`：用户任务或其他关键上下文不足。
+- `invalid_output`：模型输出不符合要求。
+- `timeout`：请求超时。
+- `service_error`：模型服务或请求发生错误。
+
+代码会严格检查 JSON 格式和字段类型，不会自动把异常输出解释为安全。服务失败时会返回保守占位值（授权不确定、风险未知、风险分数为 1、置信度为 0）。**这些占位值不代表模型实际判断出的风险**。
+
+上层审批策略应先检查 `result.usable`。即使 JSON 格式正确，只要授权状态或操作影响仍无法确认，也可能是不可用结果。
+
+`result.trace` 记录模型名称、相关配置、耗时、可取得的 token 用量和输入截断情况，不默认保存原始请求或模型输出。记录理由和其他信息时仍需注意敏感数据。
+
+## 集成时需要注意
+
+1. **确保用户任务可信。** 工具拦截模块应传入真实用户的原始任务。当前 `gate.py` 会在 `extra_args.user_task` 缺失时使用 `query`，但如果执行框架可能改写 `query`，应在入口处提前保存原始任务。新的用户授权也应从可信入口传递，不能从工具输出中推断。
+
+2. **由审批策略完成最终决策。** Judge 提供授权状态、操作风险和提示注入信号；审批策略再结合规则与人工审核预算决定批准、拒绝或升级。不能仅凭 `risk_score` 设置统一阈值，也不能在 Judge 不可用时默认批准。
+
+3. **确认工具调用的数据结构。** 现有 Agent 可能产生 Pydantic `FunctionCall` 对象，而 Gate 目前按字典读取工具调用。负责工具拦截与执行集成的模块需要统一格式，避免真实调用时出现类型错误。
+
+4. **完善多步调用流程。** 当前 `build_pipeline()` 尚未使用完整的 `ToolsExecutionLoop`。此外，批量工具调用中若同时存在批准和拒绝，消息顺序可能影响已批准操作的执行。这些属于主流程集成问题，需要在 Gate 和工具执行模块中处理。
+
+5. **统一审批输出字段。** 现有 `RiskBasedPolicy` 使用 `reason`，而 `GateOutput` 定义的是 `rationale`。负责规则审批策略的模块需要统一字段，避免审批理由丢失。
+
+6. **注意历史上下文与成本。** Judge 按字符数和消息数量限制输入，而非精确 token 数。超过限制会返回上下文不足，不会悄悄丢弃证据。长任务需要在上下文完整性、推理速度和成本之间权衡。

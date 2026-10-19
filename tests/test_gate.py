@@ -1,4 +1,6 @@
 # tests/test_gate.py
+import sys
+sys.path.insert(0, r"E:\6101\6101-agent-harness")
 
 from src.types import Decision, GateOutput, GateInput, Policy, Reviewer
 from src.gate import GateElement
