@@ -1,4 +1,4 @@
-# src/llm_reviewer.py
+# src/reviewer.py
 """LLM-simulated human reviewer backed by a local Qwen3 model served by Ollama.
 
 The gate calls approve() for an escalated tool call. approve() and deny() share one model
