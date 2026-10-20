@@ -139,7 +139,7 @@ def cost_tracker_hook(tracker, cost_usd=LOCAL_COST_USD):
 class LLMReviewer(Reviewer):
     def __init__(self, model=DEFAULT_MODEL, base_url=DEFAULT_BASE_URL, client=None,
                  max_chars=1500, max_steps=10, max_tokens=512, no_think=True,
-                 max_attempts=3, retry_wait=None, on_usage=None):
+                 max_attempts=3, retry_wait=None, on_usage=None, on_attempt=None):
         self.model = model
         self.base_url = base_url
         self.client = client or OpenAI(base_url=base_url, api_key="ollama", timeout=120.0)
@@ -150,7 +150,8 @@ class LLMReviewer(Reviewer):
         self.no_think = no_think            # append Qwen3's /no_think switch
         self.max_attempts = max_attempts
         self.retry_wait = retry_wait or wait_exponential(multiplier=1, min=1, max=8)
-        self.on_usage = on_usage            # optional callback, receives one usage dict per call
+        self.on_usage = on_usage            # optional logical-consultation summary
+        self.on_attempt = on_attempt        # optional per-HTTP-attempt usage callback
 
         self.consultations = 0              # reviews actually performed (one per GateInput)
         self.errors = 0
@@ -258,7 +259,23 @@ class LLMReviewer(Reviewer):
         for attempt in Retrying(stop=stop_after_attempt(self.max_attempts),
                                 wait=self.retry_wait, reraise=True):
             with attempt:
-                return self._raw_call(prompt)
+                started = time.time()
+                try:
+                    text, usage = self._raw_call(prompt)
+                except Exception as exc:
+                    usage = self._empty_usage()
+                    usage.update(error_type=type(exc).__name__, latency_s=time.time()-started)
+                    self._emit_attempt(usage, attempt.retry_state.attempt_number)
+                    raise
+                self._emit_attempt(usage, attempt.retry_state.attempt_number)
+                return text, usage
+
+    def _emit_attempt(self, usage, number):
+        if self.on_attempt is not None:
+            try:
+                self.on_attempt(dict(usage, attempt=number, record_type="api_attempt"))
+            except Exception:
+                self.usage_callback_errors += 1
 
     def _emit_usage(self, usage):
         if self.on_usage is None:

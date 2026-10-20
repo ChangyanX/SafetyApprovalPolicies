@@ -1,5 +1,7 @@
 # Policy implementation types and a proposed Role 3 architecture
 
+Implementation status (20 October): [R3 stub-first workflow](R3_IMPLEMENTED_WORKFLOW.md) is the authoritative description of current code. The broader semantic architecture below remains partly proposed; R4 output is advisory in v0.1. The gated runner is now connected; [execution guide](RUNNING_GATED_BENCHMARK.md). Live Qwen compatibility remains unverified.
+
 Researched **19 October 2026**. Supplement to [Industry agent approval research](INDUSTRY_AGENT_APPROVAL_RESEARCH.md). This document proposes a design; it implements no code. Updated evaluation/scope contract: [current evaluation contract](../README.md#evaluation-contract); all four AgentDojo suites are in policy-design scope, and official outcomes plus execution audit trails suffice under the user’s clarification. Public-source support is distinguished from unknown implementation details. Opened source files on `main` are moving references, not a pinned snapshot of every deployed client.
 
 ## 1. These categories overlap

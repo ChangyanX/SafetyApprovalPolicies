@@ -5,9 +5,9 @@
 ## Current status and accepted scope
 
 - Policy target: **all four suites—workspace, travel, banking and Slack**—in installed `agentdojo==0.1.35`, benchmark `v1.2.2`. See [multi-domain scope](R3/MULTI_DOMAIN_POLICY_SCOPE.md).
-- Loaded coverage: 97 user tasks and 74 tool registrations across four suites. Suite-scoped metadata now explicitly covers all 74 registrations, including parameter lists, source hashes, action families and scope-check tags. These tags describe semantics; the scope-aware decision engine remains to be implemented.
-- `6101-Agent-Harness/` contains gate/budget code, baseline policies, a metadata policy, LLM reviewer, logger, cost tracker, metrics and manifest planner. Scope-aware HybridPolicy and R4 semantic assessment remain to be implemented.
-- The team pipeline has audited integration blockers; standalone modules and construction tests do not establish end-to-end reliability.
+- Loaded coverage: 97 user tasks and 74 tool registrations across four suites. Suite-scoped metadata now explicitly covers all 74 registrations, including parameter lists, source hashes, action families and scope-check tags. These tags describe semantics; the bounded exact-grant/literal-rule engine is implemented; broad semantic scope extraction remains pending.
+- `6101-Agent-Harness/` contains gate/budget code, baseline policies, a metadata policy, LLM reviewer, logger, cost tracker, metrics and manifest planner. Stub-first scope policies and the connected executor are implemented; R4 semantic assessment remains pending.
+- The new factory connects repeated gating, review budget, R3 lifecycle and audit feedback. Forty scripted integration episodes pass; live Qwen validation awaits a reachable Ollama service.
 - Root `scripts/run_gemini.py` is a separate stock-pipeline clean/attacked smoke runner. Its default suite is workspace; it does not activate the team gate.
 - Provisional pilot model: Qwen3:14b for agent, R4 assessor and reviewer, using separate prompts/contexts. Gemini remains a fallback. Validate role-specific behavior and record exact model/runtime versions; shared-model judgments may have correlated errors.
 - No comparative policy improvement has been demonstrated. The planner now defaults to 12,552 pending rows across all suites with clean and attacked conditions; the older 1,728-row banking manifest is a legacy artifact, not the active planning default.
@@ -83,7 +83,7 @@ Report scheduled, valid, missing and error counts. Use frozen cohorts and a cons
 
 Required scope is the two baselines plus our original policy. Preserve the allocation comparator if claiming budget-aware benefit; drop optional experiments before required evidence. Split by user-task identity, freeze after development tuning, use matched attacks/models and report clean/attacked conditions separately. Initial development k grid is {0,1,3,5}; final values are not frozen.
 
-The planner now includes suite, clean/attacked condition, attack method, injection objective, repeat and unique episode ID. Defaults are all suites, direct attack, one repeat, three implemented policies and k={0,1,3,5}: 12,552 pending rows. Unimplemented hybrid labels are rejected until registered. Planning does not execute episodes. The legacy banking CSV is preserved.
+The planner now includes suite, clean/attacked condition, attack method, injection objective, repeat and unique episode ID. Defaults are all suites, direct attack, one repeat, three implemented policies and k={0,1,3,5}: 12,552 pending rows. The explicit labels `hybrid_stub` and `hybrid_stub_fixed` are now registered; their episode lifecycle is wired in the connected factory and they are excluded from the unchanged default manifest. Unknown labels are rejected. Planning does not execute episodes. The legacy banking CSV is preserved.
 
 ## Runtime audit requirements
 
@@ -155,7 +155,11 @@ Provisionally include references within the limit. Keep detailed prompts, full t
 ## Next readiness gates
 
 1. Agree shared scope/check semantics and suite-specific action adapters, R4 schema and episode-state contracts.
-2. Repair execution integration and wire audit events/scoring.
+2. Validate the connected execution loop against the live Qwen/Ollama endpoint.
 3. Pilot fixed and dynamic policy variants. The user requested no project spending/runtime cap and considers Qwen3:14b and Gemini free under the project access arrangement; retain usage logging, provider-quota handling and finite episode/retry limits.
 4. Freeze workload, models, attack protocol, thresholds, k and repetitions.
 5. Run matched evaluation and report all outcomes, costs and limitations.
+
+## R3 stub-first implementation
+
+[Implemented workflow and commands](R3/R3_IMPLEMENTED_WORKFLOW.md), [interactive HTML demo](R3/r3_workflow.html), and [R4 contract](R3/R4_INTEGRATION.md) describe the conservative rules, state, allocation and stub assessor. The manifest execution runner is connected; see [running the benchmark](R3/RUNNING_GATED_BENCHMARK.md). No model benchmark improvement is claimed.

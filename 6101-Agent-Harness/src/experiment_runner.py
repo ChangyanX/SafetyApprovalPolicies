@@ -9,7 +9,7 @@ from typing import Any
 from agentdojo.attacks.attack_registry import ATTACKS
 from agentdojo.task_suite.load_suites import get_suite, get_suites
 
-from .policy import POLICY_LABELS
+from .policy import DEFAULT_POLICY_LABELS, POLICY_LABELS
 
 
 def _unique(values, label):
@@ -34,7 +34,7 @@ def build_experiment_plan(
     Attack methods must be fixed non-DoS methods. Manifest cells are planned,
     not a statement of attack feasibility or successful model execution.
     """
-    policies = list(POLICY_LABELS) if policies is None else policies
+    policies = list(DEFAULT_POLICY_LABELS) if policies is None else policies
     k_values = [0, 1, 3, 5] if k_values is None else k_values
     attack_methods = ['direct'] if attack_methods is None else attack_methods
     if suite_name is not None and suite_names is not None:

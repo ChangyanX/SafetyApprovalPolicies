@@ -35,14 +35,20 @@ POLICIES = {
     "full_escalate": FullEscalatePolicy,
 }
 
-POLICY_LABELS = ("full_approve", "full_escalate", "risk_based")
+DEFAULT_POLICY_LABELS = ("full_approve", "full_escalate", "risk_based")
+POLICY_LABELS = DEFAULT_POLICY_LABELS + ("hybrid_stub", "hybrid_stub_fixed")
 
 
-def make_policy(label: str, tool_risk_metadata=None, suite_name=None) -> Policy:
+def make_policy(label: str, tool_risk_metadata=None, suite_name=None, *, policy_options=None) -> Policy:
     """Build a policy from the label used in the experiment manifest.
 
     "risk_based" needs the loaded tool risk metadata (see src/tool_risk.py).
     """
+    if label in ("hybrid_stub", "hybrid_stub_fixed"):
+        from .scope_policy import ScopeAwarePolicy
+        return ScopeAwarePolicy(metadata=tool_risk_metadata,
+                                allocation="fixed" if label.endswith("_fixed") else "dynamic",
+                                **(policy_options or {}))
     if label in POLICIES:
         return POLICIES[label]()
     if label == "risk_based":

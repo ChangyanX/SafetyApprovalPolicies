@@ -1,6 +1,6 @@
 # Proposed policy: scope-aware heuristics and selective, budget-aware review
 
-Design proposal, revised **20 October 2026**. No implementation or empirical performance is claimed. This is the internal architecture of the approval policy, not a team workflow or a generic agent harness. It supersedes the high-level policy sketch in the earlier architecture supplement. Numerical examples are illustrative development candidates.
+Full design proposal, revised **20 October 2026**. A bounded literal-rule/state/allocation/stub core is implemented; semantic scope extraction remains pending. The gated execution runner is connected; live model compatibility remains unverified. See [implemented behavior and limits](R3_IMPLEMENTED_WORKFLOW.md). No empirical performance is claimed. This is the internal architecture of the approval policy, not a team workflow or a generic agent harness. It supersedes the high-level policy sketch in the earlier architecture supplement. Numerical examples are illustrative development candidates.
 
 ## 1. What this policy computes
 
@@ -17,7 +17,7 @@ The objective is to test improved task completion under attack and finite review
 
 The user's latest correction supersedes the earlier banking-only direction. Design for **workspace, travel, banking and Slack**. Use a shared scope ledger/check engine/allocator with suite-specific tool semantics and effect normalization. The complete domain matrix, counts and evaluation implications are in [Multi-domain policy scope](MULTI_DOMAIN_POLICY_SCOPE.md).
 
-The loaded v1.2.2 suites contain 97 user tasks and 74 per-suite tool registrations. Existing banking code covers only part of that scope. Examples involving a bill below remain illustrations, not restrictions on supported domains. Scope/check state and R4 assessment requests must carry suite identity. Keep semantics keyed by suite and registered signature rather than global tool name alone.
+The loaded v1.2.2 suites contain 97 user tasks and 74 per-suite tool registrations. Metadata covers all 74 registrations; the implemented shared core uses suite-specific validators and bounded literal scope construction. Examples involving a bill below remain illustrations, not restrictions on supported domains. Scope/check state and R4 assessment requests must carry suite identity. Keep semantics keyed by suite and registered signature rather than global tool name alone.
 
 ## 2. Internal architecture
 

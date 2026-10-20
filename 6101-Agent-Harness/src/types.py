@@ -18,10 +18,13 @@ class GateInput(BaseModel):
     user_task_text: str
     k_remaining: int
     suite_name: Optional[str] = None
+    episode_id: Optional[str] = None
+    call_id: Optional[str] = None
 
 
 class GateOutput(BaseModel):
     decision: Decision
+    audit: Optional[Dict[str, Any]] = None
     risk_score: Optional[float] = None
     rationale: Optional[str] = None
 

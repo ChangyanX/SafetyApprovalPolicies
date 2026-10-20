@@ -1,7 +1,7 @@
 
 # 6101 Agent Harnesses
 
-**Documentation correction, 20 October 2026:** See [the verified AgentDojo evaluation contract](../README.md#evaluation-contract). The latest accepted policy scope is all four suites; suite-scoped metadata covers all 74 registrations and the planner defaults to all four suites; scope-aware enforcement and executor repairs remain separate work. See [multi-domain scope](../R3/MULTI_DOMAIN_POLICY_SCOPE.md). Official task/attack outcomes with executed-call audit trails suffice under the user’s clarification. The code below remains an integration work in progress; metric code has not yet been changed to implement this corrected contract.
+**Documentation correction, 20 October 2026:** See [the verified AgentDojo evaluation contract](../README.md#evaluation-contract). The latest accepted policy scope is all four suites; suite-scoped metadata covers all 74 registrations and the planner defaults to all four suites; bounded scope enforcement and the connected executor are implemented; broad semantic interpretation remains separate work. See [multi-domain scope](../R3/MULTI_DOMAIN_POLICY_SCOPE.md). Official task/attack outcomes with executed-call audit trails suffice under the user’s clarification. The code below remains an integration work in progress; metric code has not yet been changed to implement this corrected contract.
 
 A safety gate for LLM agents built with the AgentDojo framework. The system intercepts tool calls and applies a policy to approve, deny, or escalate requests based on tool risk metadata.
 
@@ -433,3 +433,11 @@ The original R1 changelog reported 23 passing unit tests. Confirm the current te
 ## Acknowledgements
 
 This project uses the AgentDojo framework for evaluating tool-using language model agents under utility and security tasks.
+
+## R3 stub-first policy integration
+
+`make_policy("hybrid_stub", metadata)` and `make_policy("hybrid_stub_fixed", metadata)` construct the new core. Call `begin_episode` once with a fresh ID; supply matching `GateInput.episode_id`, `call_id`, suite and original task, then report actual execution or nonexecution feedback. `GateOutput.audit` carries decision evidence. The new factory wires this lifecycle through GatedAgentPipeline. Use src.run_experiments to execute manifest rows; the legacy standalone GateElement is not the live path. See [workflow](../R3/R3_IMPLEMENTED_WORKFLOW.md) and [R4 handoff](../R3/R4_INTEGRATION.md).
+
+## Execute the existing experiment manifest
+
+Use `../.venv/bin/python -B -m src.run_experiments --check`, then follow [the connected run guide](../R3/RUNNING_GATED_BENCHMARK.md). The planner remains planning-only. All five policies share the executor; offline integration results are explicitly excluded from model comparison.

@@ -1,3 +1,7 @@
+"""Legacy standalone gate fixtures. The connected factory uses GatedAgentPipeline
+(src/gated_runtime.py), which owns repeated interception and execution feedback.
+Do not assemble this legacy query element with stock ToolsExecutor for live runs.
+"""
 # src/gate.py
 from typing import Sequence, Dict, Any, List
 from agentdojo.agent_pipeline import BasePipelineElement

@@ -1,6 +1,6 @@
 # Agent Harnesses - Gate & Infrastructure Interface
 
-**Audit correction, 20 October 2026:** This describes the existing contract, not verified end-to-end readiness. The current gate assumes dict tool calls whereas AgentDojo uses FunctionCall objects; task propagation, repeated execution, mixed batches and audit integration require repair. The current factory is a single pass, not a complete multi-turn loop. See [the decision register](../R3/PROJECT_DECISION_REGISTER.md). The policy and reviewer implementations now reside in policy.py and reviewer.py; core interfaces remain in types.py.
+**Current connection, 20 October 2026:** `build_pipeline` now returns GatedAgentPipeline with repeated interception, original-task propagation, stable IDs, authoritative budget, mixed-batch execution, R3 feedback and audit logs. The older standalone gate/component examples below are legacy references. See [current execution contract](../R3/RUNNING_GATED_BENCHMARK.md). Live Qwen compatibility remains unverified because the server was unreachable.
 
 ## Overview
 
@@ -168,3 +168,10 @@ Expected: 18 tests passing.
 - RiskBasedPolicy with YAML metadata
 - Pipeline factory with BudgetReset
 - 23 unit tests passing
+## R3 stub-first policy integration
+
+`make_policy("hybrid_stub", metadata)` and `make_policy("hybrid_stub_fixed", metadata)` construct the new core. Call `begin_episode` once with a fresh ID; supply matching `GateInput.episode_id`, `call_id`, suite and original task, then report actual execution or nonexecution feedback. `GateOutput.audit` carries decision evidence. The new factory wires this lifecycle through GatedAgentPipeline. Use src.run_experiments to execute manifest rows; the legacy standalone GateElement is not the live path. See [workflow](../R3/R3_IMPLEMENTED_WORKFLOW.md) and [R4 handoff](../R3/R4_INTEGRATION.md).
+
+## Execute the existing experiment manifest
+
+Use `../.venv/bin/python -B -m src.run_experiments --check`, then follow [the connected run guide](../R3/RUNNING_GATED_BENCHMARK.md). The planner remains planning-only. All five policies share the executor; offline integration results are explicitly excluded from model comparison.

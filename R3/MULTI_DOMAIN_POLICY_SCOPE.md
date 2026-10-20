@@ -1,5 +1,7 @@
 # Multi-domain scope for the approval policy
 
+Implementation status (20 October): [R3 stub-first workflow](R3_IMPLEMENTED_WORKFLOW.md) is the authoritative description of current code. The broader semantic architecture below remains partly proposed; R4 output is advisory in v0.1. The gated runner is now connected; [execution guide](RUNNING_GATED_BENCHMARK.md). Live Qwen compatibility remains unverified.
+
 Accepted scope correction, **20 October 2026**: the policy must support all standard AgentDojo suites, not be limited to banking. This supersedes earlier banking-only/optional-workspace planning. Existing banking code and examples remain useful starting artifacts, not a boundary on the final design.
 
 ## 1. Verified benchmark coverage
@@ -105,13 +107,13 @@ The accepted evaluator-based score and audit requirements are in [README](../REA
 
 ## 8. Implementation implications and present gap
 
-Implementation update: metadata explicitly covers all 74 registrations; suite_name is threaded through policy/gate contracts; the offline planner defaults to all suites with clean/attacked conditions, repeats, attack methods and stable episode IDs. Scope-check tags are not yet an implemented scope-aware engine. Remaining work:
+Implementation update: metadata explicitly covers all 74 registrations; suite_name is threaded through policy/gate contracts; the offline planner defaults to all suites with clean/attacked conditions, repeats, attack methods and stable episode IDs. The bounded exact-grant engine and literal templates are implemented; tags alone do not provide general semantic scope interpretation. Remaining work:
 
 1. Implement actual action normalization and scope checks using the verified metadata; refresh source signatures when versions change.
 2. Use the implemented suite_name contract consistently in the final runner and future scope state.
 3. Implement shared checks with domain-specific action normalization and effect handling.
 4. Agree the expanded R4 schema; use stubs while its adapter is built.
-5. Repair shared gate/runtime integration, then smoke-test clean and attacked episodes in every suite.
-6. Connect the multi-suite manifest to execution/scoring/plots with suite-specific cohorts.
+5. Connected runtime and all-suite clean/attacked offline smoke tests are complete; validate the live Qwen endpoint.
+6. Manifest execution/scoring is connected; run model pilots and produce plots with frozen suite-specific cohorts.
 
 Banking examples in older sections remain worked examples only. They are not the final policy boundary. Genericity should come from the shared representation and checks, not from ignoring differences in actual tool behavior.

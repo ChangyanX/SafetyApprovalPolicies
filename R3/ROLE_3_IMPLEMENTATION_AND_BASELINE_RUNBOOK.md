@@ -1,5 +1,7 @@
 # Role 3: multi-domain checks, contracts, implementation and baseline runbook
 
+Implementation status (20 October): [R3 stub-first workflow](R3_IMPLEMENTED_WORKFLOW.md) is the authoritative description of current code. The broader semantic architecture below remains partly proposed; R4 output is advisory in v0.1. The gated runner is now connected; [execution guide](RUNNING_GATED_BENCHMARK.md). Live Qwen compatibility remains unverified.
+
 Repository checked **20 October 2026**. This answers five questions: what to check, how to maintain scope/evidence, how to integrate R4 later, how to run baselines, and how to compare policies. **No new execution runner or policy code is implemented by this document.**
 
 Status labels: **EXISTING** = code/CLI exists and was inspected; **PROPOSED** = contract or command interface to implement; **UNVERIFIED LIVE** = no Qwen benchmark executed here. The local shell did not find an `ollama` executable on PATH. That does not establish whether another team machine/service has it installed.
@@ -318,32 +320,18 @@ A file without an error field is not enough: inspect the actual trajectory for m
 
 For valid attacked episodes, raw security=True means attack success. Clean security=True is a sentinel. Do not score feasibility episodes as clean user-task performance.
 
-### 4.5 Full-escalate and hybrid: benchmark runner NOT IMPLEMENTED
+### 4.5 Full-escalate and hybrid: connected runner
 
-`FullEscalatePolicy` exists in `src/policy.py`; `src.experiment_runner --policy full_escalate` now plans rows for that policy, but does not execute them. The planner also supports suite/attack selection, repeats and clean/attacked filtering. Likewise upstream `--defense` does not magically register our policy.
-
-Before running these strategies, implement/repair:
-
-1. Real FunctionCall support, original-task propagation, repeated gated execution and mixed-batch handling.
-2. A pipeline factory with the same agent adapter/system prompt/limits for every strategy.
-3. A per-episode runner selecting `make_policy(label, metadata)` and an R2 reviewer, with fresh state and a frozen attack condition.
-4. Audit/cost logging and condition-aware upstream result mapping.
-5. CLI/manifest handling for policy, k, task, attack, repeat, model, output directory and resume state.
-
-**Proposed command contract, NOT runnable now:** after implementing a module named `src.run_episode`, a clean baseline command could be:
+The previous proposed `src.run_episode` command is superseded by the implemented manifest executor `src.run_experiments`. All five policy labels share a repeated gated loop, original-task propagation, stable IDs, review budget, feedback and logs. Run [the connected execution guide](RUNNING_GATED_BENCHMARK.md) using your existing manifest. The planner itself intentionally remains planning-only.
 
 ```bash
-# PROPOSED ONLY — src/run_episode.py does not exist yet
-python -m src.run_episode \
-  --policy full_escalate --k 3 \
-  --model qwen3:14b --reviewer-model qwen3:14b \
-  --base-url http://localhost:11434/v1 \
-  --suite banking --benchmark-version v1.2.2 \
-  --user-task user_task_0 --condition clean \
-  --repeat 0 --output runs/dev_full_escalate_k3
+../.venv/bin/python -B -m src.run_experiments --check
+../.venv/bin/python -B -m src.run_experiments \
+  --manifest runs/r3_matched_plan.csv --output-dir runs/r3_clean_pilot \
+  --suite banking --task user_task_0 --condition clean --k 1 --all
 ```
 
-Do not report results from the current single-pass factory as full multi-turn baseline results. Stock full approve should be checked for parity with gated full approve after repair, then the shared gated runner should drive the primary comparison.
+Live Ollama was unreachable at verification time. Offline integrated tests pass with real environments/evaluators and scripted actors, which are not model benchmark evidence. Stock-pipeline full approve remains a separate reference: the primary matched comparisons now use the shared connected runner. It strictly validates arguments and forbids unmediated nested calls for every policy; report that operational protocol difference from stock execution.
 
 ## 5. Examine the customized policy against baselines
 
@@ -405,7 +393,7 @@ Compare paired outcomes at matched k. Improvement in the whole hybrid over basel
 
 Record every tuning change; do not retune from final outcomes. Freeze code/version, prompt hashes, rule/allocation configs, task/attack manifest, k grid, repetitions, retry/episode bounds and metric mapping. Run final held-out conditions using the same shared runner. Preserve original audit trails and all attempts.
 
-The current repo cannot execute this entire workflow from one command yet. Its missing gated runner is a concrete engineering task, not an undecided policy principle. This runbook intentionally does not invent existing flags or claim live tests passed.
+The manifest executor now runs selected episodes and exports normalized outcomes/audit logs. Analysis, final plots and the complete semantic R4 policy remain separate work. Live Qwen tests have not passed yet because the local service was unreachable.
 
 ## 6. References and inspected implementation
 
