@@ -12,7 +12,7 @@ from .budget import BudgetResetElement
 from .gate import GateElement
 
 
-def build_pipeline(model, policy, k, reviewer, tool_risk_metadata, system_prompt="", client=None):
+def build_pipeline(model, policy, k, reviewer, tool_risk_metadata, system_prompt="", client=None, suite_name=None):
     """
     组装完整 pipeline:
     SystemMessage → InitQuery → BudgetReset → LLM → Gate → ToolsExecutor
@@ -41,6 +41,7 @@ def build_pipeline(model, policy, k, reviewer, tool_risk_metadata, system_prompt
             reviewer=reviewer,
             k=k,
             tool_risk_metadata=tool_risk_metadata,
+            suite_name=suite_name,
         ),
         ToolsExecutor(),
     ]

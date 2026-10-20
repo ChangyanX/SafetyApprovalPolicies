@@ -4,7 +4,7 @@ Research date: **19 October 2026, Asia/Singapore**. Purpose: inform AI6101 Role 
 
 For policy-type classifications, public policy files, unknown training details and a proposed component architecture, see [Policy types and proposed architecture](POLICY_TYPES_AND_PROPOSED_ARCHITECTURE.md).
 
-**Project update, 20 October:** The policy targets workspace, travel, banking and Slack; see [multi-domain scope](MULTI_DOMAIN_POLICY_SCOPE.md). The user accepts official AgentDojo outcomes plus executed-call audit trails; use [the evaluation contract](README.md#evaluation-contract) for the scoring contract. Industry architectures remain inspirations, not evidence of our policy’s improvement. Domain examples below illustrate shared checks; actual semantics must be supplied per suite.
+**Project update, 20 October:** The policy targets workspace, travel, banking and Slack; see [multi-domain scope](MULTI_DOMAIN_POLICY_SCOPE.md). The user accepts official AgentDojo outcomes plus executed-call audit trails; use [the evaluation contract](../README.md#evaluation-contract) for the scoring contract. Industry architectures remain inspirations, not evidence of our policy’s improvement. Domain examples below illustrate shared checks; actual semantics must be supplied per suite.
 
 ## 1. What was verified
 

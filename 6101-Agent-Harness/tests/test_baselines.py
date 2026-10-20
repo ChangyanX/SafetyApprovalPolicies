@@ -1,4 +1,4 @@
-from src.baseline_policies import FullApprovePolicy, FullEscalatePolicy
+from src.policy import FullApprovePolicy, FullEscalatePolicy
 from src.types import Decision, GateInput
 
 def make_input(tool="send_money", k=3):

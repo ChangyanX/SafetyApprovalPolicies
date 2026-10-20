@@ -248,7 +248,7 @@ cd 6101-Agent-Harness
 python -m pytest tests/ -v
 ```
 
-**Known current import blockers:** `tests/test_baselines.py` imports nonexistent `src.baseline_policies`; the implementation is in `src.policy`. `tests/test_llm_reviewer.py` imports nonexistent `src.llm_reviewer`; implementation is in `src.reviewer`. Fix those imports before expecting collection to pass. Existing dict-only gate tests are insufficient; add real FunctionCall execution/denial tests.
+Stale imports have been repaired: baseline tests use `src.policy` and reviewer tests use `src.reviewer`. Existing dict-only gate tests are insufficient; add real FunctionCall execution/denial tests.
 
 Return to the repository root before the following stock CLI commands:
 
@@ -320,7 +320,7 @@ For valid attacked episodes, raw security=True means attack success. Clean secur
 
 ### 4.5 Full-escalate and hybrid: benchmark runner NOT IMPLEMENTED
 
-`FullEscalatePolicy` exists in `src/policy.py`; there is no working command today such as `--policy full_escalate` on `src.experiment_runner`. That module only writes a CSV plan. Likewise upstream `--defense` does not magically register our policy.
+`FullEscalatePolicy` exists in `src/policy.py`; `src.experiment_runner --policy full_escalate` now plans rows for that policy, but does not execute them. The planner also supports suite/attack selection, repeats and clean/attacked filtering. Likewise upstream `--defense` does not magically register our policy.
 
 Before running these strategies, implement/repair:
 
@@ -415,5 +415,5 @@ The current repo cannot execute this entire workflow from one command yet. Its m
 - [Pinned banking tools](https://github.com/ethz-spylab/agentdojo/blob/v0.1.35/src/agentdojo/default_suites/v1/tools/banking_client.py).
 - [Pinned user-account tools](https://github.com/ethz-spylab/agentdojo/blob/v0.1.35/src/agentdojo/default_suites/v1/tools/user_account.py).
 - [Ollama OpenAI compatibility](https://docs.ollama.com/api/openai-compatibility).
-- Local inspected files: [types](6101-Agent-Harness/src/types.py), [baseline policies](6101-Agent-Harness/src/policy.py), [factory](6101-Agent-Harness/src/pipeline.py), [reviewer](6101-Agent-Harness/src/reviewer.py), [reviewer prompt](6101-Agent-Harness/prompts/reviewer.txt), [planner](6101-Agent-Harness/src/experiment_runner.py).
-- Project contract: [AgentDojo learning/evaluation](README.md#evaluation-contract), [policy architecture](SCOPE_AWARE_POLICY_ARCHITECTURE.md), [decision register](PROJECT_DECISION_REGISTER.md).
+- Local inspected files: [types](../6101-Agent-Harness/src/types.py), [baseline policies](../6101-Agent-Harness/src/policy.py), [factory](../6101-Agent-Harness/src/pipeline.py), [reviewer](../6101-Agent-Harness/src/reviewer.py), [reviewer prompt](../6101-Agent-Harness/prompts/reviewer.txt), [planner](../6101-Agent-Harness/src/experiment_runner.py).
+- Project contract: [AgentDojo learning/evaluation](../README.md#evaluation-contract), [policy architecture](SCOPE_AWARE_POLICY_ARCHITECTURE.md), [decision register](PROJECT_DECISION_REGISTER.md).

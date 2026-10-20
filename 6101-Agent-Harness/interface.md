@@ -113,19 +113,29 @@ SystemMessage → InitQuery → BudgetReset → LocalLLM → Gate → ToolsExecu
 
 ## Tool Risk Metadata YAML
 
-Located at `src/tool_risk_metadata.yaml`. Structure:
+Schema v2 uses suites.<suite_name>.tools.<tool_name> with common defaults. All 74 registrations have explicit action families, scope-check tags, parameter names, source paths and source hashes. These are metadata, not a completed scope-aware policy. Newly added tools conservatively escalate; banking reference decisions remain unchanged.
+
 ```yaml
+schema_version: 2
+benchmark_version: v1.2.2
 defaults:
-risk: medium
-category: execute
-default_decision: ESCALATE
-tools:
-tool_name:
-risk: low | medium | high
-category: read | write | execute | auth
-default_decision: AUTO_APPROVE | AUTO_DENY | ESCALATE
-rationale: "Optional explanation"
+  risk: medium
+  category: execute
+  default_decision: ESCALATE
+suites:
+  workspace:
+    tools:
+      send_email:
+        risk: high
+        category: write
+        default_decision: ESCALATE
+        action_family: communication
 ```
+
+Use load_tool_risk_metadata(path, suite_name="workspace") for a dict-compatible selected view. Without selection, unambiguous names remain compatible while overlapping names conservatively fall back. risk_for(metadata, tool_name, suite_name=None) cannot borrow a definition from a different suite. Legacy flat tools YAML still loads.
+
+GateInput, GateResult, GateElement, RiskBasedPolicy, make_policy and build_pipeline accept optional suite_name. The new planner defaults to all suites; see README for command flags. Separate executor compatibility blockers remain unresolved by this metadata/planner change.
+
 ## Usage
 ```python
 from src.pipeline import build_pipeline

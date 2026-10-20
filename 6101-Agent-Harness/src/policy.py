@@ -38,7 +38,7 @@ POLICIES = {
 POLICY_LABELS = ("full_approve", "full_escalate", "risk_based")
 
 
-def make_policy(label: str, tool_risk_metadata=None) -> Policy:
+def make_policy(label: str, tool_risk_metadata=None, suite_name=None) -> Policy:
     """Build a policy from the label used in the experiment manifest.
 
     "risk_based" needs the loaded tool risk metadata (see src/tool_risk.py).
@@ -49,5 +49,5 @@ def make_policy(label: str, tool_risk_metadata=None) -> Policy:
         if tool_risk_metadata is None:
             raise ValueError("risk_based policy needs tool_risk_metadata")
         from .risk_based_policy import RiskBasedPolicy
-        return RiskBasedPolicy(tool_risk_metadata)
+        return RiskBasedPolicy(tool_risk_metadata, suite_name=suite_name)
     raise ValueError(f"unknown policy label {label!r}; expected one of {POLICY_LABELS}")

@@ -6,7 +6,7 @@ Reconciled **20 October 2026**. This replaces the earlier long recommendation li
 
 - Course handout: required AgentDojo gate, original three-way policy, full-approve/full-escalate baselines, online LLM reviewer, finite per-task k, report evidence and presentation.
 - User clarification: five-page report; all-suite policy scope (latest correction supersedes earlier banking-only direction); audit recommendations accepted; **AgentDojo results suffice for evaluation with executed-call audit trails**. These are user-supplied clarifications, not independently obtained TA messages.
-- [AgentDojo learning and evaluation](README.md#evaluation-contract): verified benchmark semantics and scoring contract.
+- [AgentDojo learning and evaluation](../README.md#evaluation-contract): verified benchmark semantics and scoring contract.
 - [Policy architecture](SCOPE_AWARE_POLICY_ARCHITECTURE.md): detailed proposed policy internals.
 - [Role 3 work plan](ROLE_3_RESEARCH_PLAN.md): implementation scope and checkpoints.
 - [Industry review](INDUSTRY_AGENT_APPROVAL_RESEARCH.md) and [policy types](POLICY_TYPES_AND_PROPOSED_ARCHITECTURE.md): sourced inspirations, not our runtime specification.
@@ -43,7 +43,7 @@ Improvement is a hypothesis. Higher benchmark TCR at matched k supports the whol
 | k in {0,1,3,5} | Planner default; use for development before freezing final range |
 | qwen3:14b via Ollama | Team agent factory/reviewer default; live compatibility not established by this review |
 | Gemini adapter at repository root | Separate stock-pipeline runner; defaults to workspace and does not activate team gate |
-| 1,728 pending manifest rows | Planner cross-product, not completed runs; missing clean/attack-method/repeat/hybrid dimensions |
+| 12,552 default pending rows | Multi-suite planner includes clean/attacked conditions, attack method, repeat and unique episode IDs. Legacy banking CSV preserved. Unimplemented hybrid labels are rejected. |
 | Gate policy output | Decision, optional score and rationale only; detailed evidence/allocation schema absent |
 | R5 logger/metrics/cost modules | Standalone implementation; integration and scorer mapping pending |
 
@@ -82,10 +82,10 @@ These are implementation defects/gaps, not choices to defer:
 4. Preserve all proposed calls/results in mixed approved/denied batches; append denials without causing approved calls to be skipped.
 5. Preserve original trajectory/calls before mutation; add episode/call IDs and actual execution/reviewer events.
 6. Reconcile metrics with the accepted AgentDojo-based mapping, condition-aware raw security semantics, cohort totals and fixed denominators. Do not deduplicate repeated episodes by task ID alone.
-7. Repair stale test imports. Verify reviewer errors and denial paths cannot execute calls.
+7. Stale test imports are repaired. Actual executor behavior for reviewer errors and denial paths still needs integration verification.
 8. Validate sensitive execution semantics, including amendment fields that the upstream tool may ignore for false/zero values; do not silently patch benchmark behavior mid-comparison.
 
-No code is changed by this documentation revision. The last audit directly invoked existing offline test functions: 23 passed; two test modules failed import; pytest was unavailable. It did not establish live reliability.
+No code is changed by this documentation revision. Current metadata/planner validation: 11 new unittest tests passed and 41 legacy checks passed by direct offline invocation after repairing stale imports and the shared-request fixture. This is not a pytest or live end-to-end benchmark run; execution integration blockers remain.
 
 **Additional audited prompt issue:** R2’s current reviewer prompt denies recipients not literally mentioned by the user. Reconcile it with task-authorized bill/history-derived beneficiaries before freezing comparisons. This is a prompt/design correction, not evidence that every file-derived beneficiary is genuine. See the [implementation/baseline runbook](ROLE_3_IMPLEMENTATION_AND_BASELINE_RUNBOOK.md).
 

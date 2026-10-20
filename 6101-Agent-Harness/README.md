@@ -1,7 +1,7 @@
 
 # 6101 Agent Harnesses
 
-**Documentation correction, 20 October 2026:** See [the verified AgentDojo evaluation contract](../README.md#evaluation-contract). The latest accepted policy scope is all four suites; current code/metadata/planner defaults remain banking-oriented and must be extended. See [multi-domain scope](../MULTI_DOMAIN_POLICY_SCOPE.md). Official task/attack outcomes with executed-call audit trails suffice under the user’s clarification. The code below remains an integration work in progress; metric code has not yet been changed to implement this corrected contract.
+**Documentation correction, 20 October 2026:** See [the verified AgentDojo evaluation contract](../README.md#evaluation-contract). The latest accepted policy scope is all four suites; suite-scoped metadata covers all 74 registrations and the planner defaults to all four suites; scope-aware enforcement and executor repairs remain separate work. See [multi-domain scope](../R3/MULTI_DOMAIN_POLICY_SCOPE.md). Official task/attack outcomes with executed-call audit trails suffice under the user’s clarification. The code below remains an integration work in progress; metric code has not yet been changed to implement this corrected contract.
 
 A safety gate for LLM agents built with the AgentDojo framework. The system intercepts tool calls and applies a policy to approve, deny, or escalate requests based on tool risk metadata.
 
@@ -313,38 +313,30 @@ Calls with unknown costs should be reported separately. They should not be silen
 
 **Implementation note:** These are the intended metric definitions. They must be checked against the course project specification and the actual implementation in `src/metrics.py` before final results are reported.
 
-### 4. Experiment Runner
+### 4. Experiment Runner: offline multi-suite planner
 
-File: `src/experiment_runner.py`
+The planner now defaults to workspace, travel, banking and Slack. Rows include suite, clean/attacked condition, attack method, injection objective, policy, k, repeat and a stable opaque episode ID. It does not call models or execute benchmark tasks.
 
-The current Experiment Runner generates a CSV experiment manifest using the AgentDojo task suite, policy labels, and escalation-budget values.
+Defaults: v1.2.2; implemented policies full_approve/full_escalate/risk_based; k={0,1,3,5}; direct attack; one repeat. This produces 12,552 pending rows: workspace 7,200, travel 1,920, banking 1,920, Slack 1,512. The old banking-only CSV is a preserved legacy artifact.
 
-The default configuration is:
-
-| Parameter | Value |
-|---|---|
-| Benchmark version | `v1.2.2` |
-| Task suite | `banking` |
-| Policy labels | `full_approve`, `full_escalate`, `risk_based` |
-| Escalation budgets | `0`, `1`, `3`, `5` |
-
-The current configuration generates 1,728 planned combinations:
-
-16 user tasks x 9 injection tasks x 3 policy labels x 4 budget values = 1,728 combinations.
-
-Generate the experiment plan from the repository root:
+From this team folder:
 
 ```bash
-python -m src.experiment_runner
+../.venv/bin/python -m src.experiment_runner
+../.venv/bin/python -m src.experiment_runner --suite workspace --suite slack --policy full_escalate --k 1 --repeats 2 --output runs/workspace_slack_plan.csv
+../.venv/bin/python -m src.experiment_runner --suite travel --clean-only --output runs/travel_clean_plan.csv
 ```
 
-Output file:
+Default output: `runs/r5_multisuite_experiment_plan.csv`. Existing files are protected unless --overwrite is explicitly passed. Policy labels must be implemented. Manual and DoS attacks are rejected by this planner; execution feasibility remains to be checked by the eventual runner.
 
-`runs/r5_experiment_plan.csv`
+Load a selected suite view:
 
-The CSV contains the benchmark version, suite, user task ID, injection task ID, policy label, escalation budget, status, and error field.
+```python
+md = load_tool_risk_metadata("src/tool_risk_metadata.yaml", suite_name="workspace")
+policy = RiskBasedPolicy(md)
+```
 
-**Important:** The current runner generates an experiment plan only. It does not execute all benchmark tasks or establish completed experimental results. The policy labels in the plan must be connected to the corresponding policy implementations before the final evaluation.
+The whole catalog can also be loaded, with suite_name passed to risk_for/policy/gate/factory. Unscoped overlapping names use the conservative fallback. Legacy flat tools YAML remains accepted. Existing banking reference decisions are preserved; new tools conservatively escalate. Scope-check tags document evidence requirements but are not yet enforced by RiskBasedPolicy.
 
 ## Experiment Design
 

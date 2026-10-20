@@ -101,17 +101,17 @@ Do not cache approval by tool name alone. A changed recipient, resource, payload
 - Compare required baselines and hybrid variants on matched conditions **within each suite**, not one policy on banking and another on workspace.
 - A cross-domain generalization claim requires a domain-held-out experiment; merely evaluating all domains after tuning on all domains supports multi-domain performance, not unseen-domain generalization.
 
-The accepted evaluator-based score and audit requirements are in [README](README.md#evaluation-contract). The shared policy remains a hypothesis to test, not a promised improvement.
+The accepted evaluator-based score and audit requirements are in [README](../README.md#evaluation-contract). The shared policy remains a hypothesis to test, not a promised improvement.
 
 ## 8. Implementation implications and present gap
 
-The existing YAML, metadata policy and manifest planner are banking-oriented. This documentation update does not make those implementations multi-suite. Required next work:
+Implementation update: metadata explicitly covers all 74 registrations; suite_name is threaded through policy/gate contracts; the offline planner defaults to all suites with clean/attacked conditions, repeats, attack methods and stable episode IDs. Scope-check tags are not yet an implemented scope-aware engine. Remaining work:
 
-1. Generate/verify per-suite tool inventories and semantic metadata for all 74 registrations.
-2. Add suite_id to policy/context/state and resolve definitions by suite plus tool signature.
+1. Implement actual action normalization and scope checks using the verified metadata; refresh source signatures when versions change.
+2. Use the implemented suite_name contract consistently in the final runner and future scope state.
 3. Implement shared checks with domain-specific action normalization and effect handling.
 4. Agree the expanded R4 schema; use stubs while its adapter is built.
 5. Repair shared gate/runtime integration, then smoke-test clean and attacked episodes in every suite.
-6. Extend manifest/scoring/plots to preserve suite identity and suite-specific cohorts.
+6. Connect the multi-suite manifest to execution/scoring/plots with suite-specific cohorts.
 
 Banking examples in older sections remain worked examples only. They are not the final policy boundary. Genericity should come from the shared representation and checks, not from ignoring differences in actual tool behavior.

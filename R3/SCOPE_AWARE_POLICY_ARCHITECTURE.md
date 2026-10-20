@@ -11,7 +11,7 @@ The proposal has two distinct functions:
 1. **Scope-aware heuristics:** determine whether the operation, resource, recipient, data and side effects fit the user's request. Resolve cases supported by explicit checks cheaply.
 2. **Selective, budget-aware review:** for unresolved calls, determine whether a reviewer can resolve the uncertainty and whether that opportunity merits one of the remaining review slots.
 
-The objective is to test improved task completion under attack and finite review budgets. Under the user’s clarification, use official AgentDojo outcomes plus executed-call audit trails, as defined in [the evaluation contract](README.md#evaluation-contract). This benchmark operationalization is not a universal no-unauthorized-call certificate. Budget scarcity changes review selection; it never supplies missing authorization.
+The objective is to test improved task completion under attack and finite review budgets. Under the user’s clarification, use official AgentDojo outcomes plus executed-call audit trails, as defined in [the evaluation contract](../README.md#evaluation-contract). This benchmark operationalization is not a universal no-unauthorized-call certificate. Budget scarcity changes review selection; it never supplies missing authorization.
 
 ## 1.1 Accepted scope: all standard suites
 

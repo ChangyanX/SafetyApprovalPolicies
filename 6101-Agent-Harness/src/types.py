@@ -17,6 +17,7 @@ class GateInput(BaseModel):
     trajectory: List[Dict[str, Any]]
     user_task_text: str
     k_remaining: int
+    suite_name: Optional[str] = None
 
 
 class GateOutput(BaseModel):
@@ -31,6 +32,7 @@ class GateResult(BaseModel):
     decision: Decision
     approved: bool
     k_remaining: int
+    suite_name: Optional[str] = None
     rationale: Optional[str] = None
 
 
