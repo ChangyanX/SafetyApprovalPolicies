@@ -1,5 +1,7 @@
 # Agent Harnesses - Gate & Infrastructure Interface
 
+**Audit correction, 20 October 2026:** This describes the existing contract, not verified end-to-end readiness. The current gate assumes dict tool calls whereas AgentDojo uses FunctionCall objects; task propagation, repeated execution, mixed batches and audit integration require repair. The current factory is a single pass, not a complete multi-turn loop. See [the decision register](../R3/PROJECT_DECISION_REGISTER.md). The policy and reviewer implementations now reside in policy.py and reviewer.py; core interfaces remain in types.py.
+
 ## Overview
 
 This module implements a safety gate for LLM agents using the AgentDojo framework.
@@ -13,8 +15,8 @@ and optionally consults a reviewer for escalated calls.
 │ ├── types.py # Core type definitions
 │ ├── gate.py # GateElement - tool approval gate
 │ ├── budget.py # BudgetResetElement - per-task budget reset
-│ ├── policy.py # Policy interface (deprecated, use types.Policy)
-│ ├── reviewer.py # Reviewer interface (deprecated, use types.Reviewer)
+│ ├── policy.py # Full-approve/full-escalate implementations; interface in types.Policy
+│ ├── reviewer.py # LLM reviewer implementation; interface in types.Reviewer
 │ ├── risk_based_policy.py # RiskBasedPolicy - YAML-driven policy
 │ ├── tool_risk.py # YAML loader for tool risk metadata
 │ ├── tool_risk_metadata.yaml # Tool risk configuration

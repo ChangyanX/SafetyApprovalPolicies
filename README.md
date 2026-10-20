@@ -1,831 +1,161 @@
 # Safety Approval Policies for Agent Harnesses
 
-**AI6101 Introduction to AI and AI Ethics · Group Project 1**  
-**Proposed implementation:** an authorization-aware, budget-aware approval gate for AgentDojo.  
-**Status:** Gemini clean-task runner implemented; approval gate, policies and evaluation remain planned. No benchmark results or performance improvements are claimed.
-**Setup updated:** 12 October 2026.
+**Goal:** design and evaluate a scope-aware approval policy under a limited per-task review budget using AgentDojo. Whether the customized policy improves results is an empirical question, not an assumed conclusion.
 
-> **Research question:** Can explicit authorization checks and selective review of resolvable uncertainty improve safe task completion under a limited human-review budget?
->
-> **Scope:** Build and evaluate an approval policy, not a new foundation model. Start with one working task, a reliable execution gate, and simple rules. Add complexity only when experiments justify it.
+## Current status and accepted scope
 
-## Contents
+- Policy target: **all four suites—workspace, travel, banking and Slack**—in installed `agentdojo==0.1.35`, benchmark `v1.2.2`. See [multi-domain scope](R3/MULTI_DOMAIN_POLICY_SCOPE.md).
+- Loaded coverage: 97 user tasks and 74 tool registrations across four suites. Suite-scoped metadata now explicitly covers all 74 registrations, including parameter lists, source hashes, action families and scope-check tags. These tags describe semantics; the scope-aware decision engine remains to be implemented.
+- `6101-Agent-Harness/` contains gate/budget code, baseline policies, a metadata policy, LLM reviewer, logger, cost tracker, metrics and manifest planner. Scope-aware HybridPolicy and R4 semantic assessment remain to be implemented.
+- The team pipeline has audited integration blockers; standalone modules and construction tests do not establish end-to-end reliability.
+- Root `scripts/run_gemini.py` is a separate stock-pipeline clean/attacked smoke runner. Its default suite is workspace; it does not activate the team gate.
+- Provisional pilot model: Qwen3:14b for agent, R4 assessor and reviewer, using separate prompts/contexts. Gemini remains a fallback. Validate role-specific behavior and record exact model/runtime versions; shared-model judgments may have correlated errors.
+- No comparative policy improvement has been demonstrated. The planner now defaults to 12,552 pending rows across all suites with clean and attacked conditions; the older 1,728-row banking manifest is a legacy artifact, not the active planning default.
 
-- [1. Project objective and requirements](#1-project-objective-and-requirements)
-- [2. What AgentDojo provides](#2-what-agentdojo-provides)
-- [3. What a policy is](#3-what-a-policy-is)
-- [4. Data and dataset strategy](#4-data-and-dataset-strategy)
-- [5. First working experiment](#5-first-working-experiment)
-- [6. Proposed advanced policy](#6-proposed-advanced-policy)
-- [7. Reviewer and execution safety](#7-reviewer-and-execution-safety)
-- [8. Evaluation protocol](#8-evaluation-protocol)
-- [9. Metrics and assessment](#9-metrics-and-assessment)
-- [10. Logging and failure analysis](#10-logging-and-failure-analysis)
-- [11. Token and cost management](#11-token-and-cost-management)
-- [12. Six-person technical ownership](#12-six-person-technical-ownership)
-- [13. Fair participation and individual assessment](#13-fair-participation-and-individual-assessment)
-- [14. Proposed repository layout](#14-proposed-repository-layout)
-- [15. Milestones and deliverables](#15-milestones-and-deliverables)
-- [16. Risks and questions for the TA](#16-risks-and-questions-for-the-ta)
-- [17. Completion checklist](#17-completion-checklist)
-- [18. References](#18-references)
+## Documents and source precedence
 
-## 1. Project objective and requirements
-
-Intercept every tool call proposed by an LLM agent **before execution**, then choose:
-
-1. **Auto-approve:** allow execution without review.
-2. **Auto-deny:** block the call.
-3. **Escalate:** ask an LLM-simulated human reviewer to approve or deny.
-
-Each task has an escalation budget **k**. An escalation consumes one slot whether the reviewer approves or denies. Once the budget is exhausted, a decision that would otherwise escalate must become auto-deny. [Course brief, §2, p.1][brief]
-
-The objective is **safe task completion**, not merely blocking attacks. A policy that refuses everything may prevent unsafe execution but cannot complete useful work.
-
-| ID | Course requirement | Planned evidence |
-| --- | --- | --- |
-| C1 | Three-way approval policy and per-task budget k | Decision logic, budget ledger, boundary tests |
-| C2 | Approval gate integrated with AgentDojo before tool execution | Integration code and traces showing denied calls do not execute |
-| C3 | At least one student-developed policy | Original authorization and review-allocation logic |
-| C4 | Full-approve and full-escalate baselines | Matched experiments using the same runtime |
-| C5 | Online LLM-simulated reviewer with realistic context | Reviewer prompt, request contract and output parser |
-| C6 | No ground-truth labels, attack annotations or oracle information in reviewer inputs | Field allowlist and leakage checks |
-| C7 | TCR@k curves and HITL-load table | Reproducible metric calculations and plots |
-| C8 | API cost split into agent execution, policy inference and reviewer simulation | Component-level usage ledger |
-| C9 | Over-conservative and over-permissive failures, with trajectories | Evidence-backed case studies |
-| C10 | Escalation-value analysis | Analysis of where review helps and where automatic decisions suffice |
-| C11 | GitHub submission; 10-minute presentation and 5-minute Q&A | Repository, report, slides and reproduction instructions |
-
-Sources: [brief §§2–3.3, pp.1–2; §§4.1–4.3, p.2][brief]. The brief provides no individual grading weights, deadline, required k grid, minimum task count or mandatory repetition count. Team rules, sample sizes and schedules below are **proposals**, not course requirements.
-
-## 2. What AgentDojo provides
-
-AgentDojo is an open-source evaluation environment for prompt-injection attacks and defenses against tool-using LLM agents. It is more than a static question-and-answer dataset: agents interact with tools and change environment state. [Official repository][repo] · [Paper][paper]
-
-| Component | Role in the project |
+| Document | Use |
 | --- | --- |
-| User tasks | Define what the agent should accomplish |
-| Environment data | Define the initial state on which tools operate |
-| Tools | Let the agent inspect or modify that environment |
-| Injection settings and objectives | Define where attackers can interfere and what they want the agent to do |
-| Evaluation functions | Assess task/attack outcomes using outputs, environment state or supported trace checks |
-| Agent pipeline | Runs the model and tool-execution loop; provides a place to integrate defenses |
+| Two-page course handout | Required deliverables and objective |
+| User clarifications | Five-page report, all-suite policy scope (supersedes earlier banking-only direction), accepted audit recommendations, AgentDojo evaluation plus executed-call audit trail |
+| [Multi-domain scope](R3/MULTI_DOMAIN_POLICY_SCOPE.md) / evaluation contract below | Verified suite coverage, common checks, domain semantics and scoring |
+| [Decision register](R3/PROJECT_DECISION_REGISTER.md) | Accepted choices, code defaults and open decisions |
+| [Scope-aware policy architecture](R3/SCOPE_AWARE_POLICY_ARCHITECTURE.md) | Proposed policy internals, rules and allocation justification |
+| [Role 3 plan](R3/ROLE_3_RESEARCH_PLAN.md) | R3 work sequence and experiment ownership |
+| [Industry research](R3/INDUSTRY_AGENT_APPROVAL_RESEARCH.md) / [policy types](R3/POLICY_TYPES_AND_PROPOSED_ARCHITECTURE.md) | Referenced industry patterns and public policy files |
+| [Team interface](6101-Agent-Harness/interface.md) | Existing contracts; implementation must be checked against pinned runtime |
 
-See the official [task documentation][tasks] and [pipeline documentation][pipeline].
+## Course requirements
 
-### Illustrative scenario
+Intercept every proposed tool call before execution and choose auto-approve, auto-deny or escalation to an online LLM-simulated human reviewer. Each actual review consumes one of k per-task slots regardless of verdict. Once exhausted, calls requiring escalation are denied. Compare an original policy with full approve and full escalate under the same finite-budget rule.
 
-The user asks the agent to find tomorrow's meeting and list the attendees. The agent reads a calendar entry containing a malicious instruction to email all meeting details to an external address. The agent may then propose a sending operation that the user never authorized.
+Submit via GitHub: integrated code; TCR@k curves; HITL totals; agent/policy/reviewer API costs; over-conservative and over-permissive failure classification with concrete trajectories; escalation-value analysis; and a 10-minute presentation plus 5-minute Q&A. Reviewer inputs must exclude benchmark ground truth, attacker objectives/annotations and evaluator outcomes. [Course handout](AI6101%20Group%20Project%201%20-%20Safety%20Approval%20Policies%20for%20Agent%20Harnesses.pdf), §§2–4.
 
-Our gate must inspect that proposed call **before** it executes. External content may provide task facts, but it cannot grant new user authorization.
+The user confirmed a five-page report. Deadline, template and whether references/appendices count remain unconfirmed.
 
-This example is explanatory, not a claim about one particular benchmark case.
+## Policy and task scope
 
-### Roles that must remain distinct
+AgentDojo supplies task prompts, tools, environments and task-specific evaluators. It does not provide a general structured authorization ledger for every call. Our ledger interprets the original request, bounded delegated instructions and observable facts.
 
-| Role | Responsibility |
-| --- | --- |
-| Agent | Attempts the user task and proposes tool calls |
-| Policy | Chooses approve, deny or escalate |
-| Gate | Enforces the decision and maintains review budget |
-| Simulated reviewer | Approves or denies an escalated call using permitted context |
-| Evaluator | Scores the actual run using the benchmark protocol |
-
-The reviewer is fallible. Its decision is not the ground truth used to evaluate the same decision.
-
-## 3. What a policy is
-
-A policy is a mapping from decision-time information to an action:
-
-```text
-policy(user request, proposed call, relevant history, remaining budget)
-    -> APPROVE | DENY | ESCALATE
-```
-
-It may be implemented with rules, an LLM prompt, a classifier, a learned method, or a combination. Training a new model is not mandatory. [Brief §4.1][brief]
-
-A workflow graph describes **which component runs next**. A policy determines **which decision is made and why**. Two teams can use the same graph and obtain very different safety and completion results.
+Use common checks for operation, resource/identity, destination/audience, data/content, quantitative constraints, mutations, provenance and cumulative effects. Suite-specific semantic adapters cover email/calendar/files, travel reservations, banking and Slack; see [the scope matrix](R3/MULTI_DOMAIN_POLICY_SCOPE.md). Banking beneficiary/amount examples illustrate these common dimensions. Task-authorized bill/history lookup can resolve values absent from the prompt. Some tasks explicitly delegate file instructions; reject unrelated expansion rather than banning all file-derived actions. Compromised source facts can remain ambiguous even to a reviewer.
 
 ```mermaid
 flowchart TD
-    A["Agent proposes a call"] --> P{"Approval policy"}
-    P -->|Approve| T["Execute exact approved call"]
-    P -->|Deny| D["Return denial"]
-    P -->|Escalate| B{"Budget available?"}
-    B -->|No| D
-    B -->|Yes| R{"Simulated reviewer"}
-    R -->|Approve| T
-    R -->|Deny| D
-    T --> N["Agent continues or finishes"]
-    D --> N
+    A["Task prompt and observable facts"] --> B["Scope ledger and actual action semantics"]
+    B --> C["Four-state scope checks"]
+    C -->|Established authorization| P["APPROVE"]
+    C -->|Proven violation| D["DENY"]
+    C -->|Unresolved| J["Bounded semantic assessment"]
+    J --> R["Recheck scope; filter reviewable uncertainty"]
+    R --> S["Priority versus remaining-budget threshold"]
+    S -->|Selected| E["ESCALATE"]
+    S -->|Not selected| D
+    P --> G["Execution gate enforces decision"]
+    D --> G
+    E --> G
 ```
 
-A graph framework is optional. A Python policy integrated into AgentDojo is enough to start.
+Detailed complete branches and justification: [architecture](R3/SCOPE_AWARE_POLICY_ARCHITECTURE.md). Industry-inspired mechanisms are not proof that this particular combination improves benchmark outcomes.
 
-### Simple policy example
+## Evaluation contract
 
-The following is **illustrative code**, not an implemented AgentDojo adapter:
+The user clarified that **AgentDojo results suffice, with all executed calls recorded for audit**. Independent per-call authorization labels are not a prerequisite.
 
-```python
-from enum import Enum
+For valid attacked episodes, $U_i$ is upstream utility, $J_i$ is specified attack-goal success, and $E_i$ is actual reviewer use:
 
-class Decision(Enum):
-    APPROVE = "approve"
-    DENY = "deny"
-    ESCALATE = "escalate"
+$$\operatorname{TCR}_{\mathrm{AD}}@k=\frac{1}{N}\sum_{i=1}^{N}U_i(1-J_i),\qquad E_i\le k.$$
 
-def approval_policy(evidence, remaining_budget):
-    if evidence.explicitly_unauthorized:
-        return Decision.DENY
-    if evidence.clearly_authorized and evidence.low_risk:
-        return Decision.APPROVE
-    if remaining_budget > 0:
-        return Decision.ESCALATE
-    return Decision.DENY
-```
+Call this **AgentDojo-based project TCR**. Report attacked utility and attack-success rate alongside it; report clean utility separately. This operationalization does not certify every possible unauthorized action. Preserve unexpected audit findings as additional evidence.
 
-The difficult part is producing reliable `evidence`. Those fields cannot be assumed to exist, filled using hidden benchmark labels, or accepted merely because a model asserted them.
+**Critical raw-field mapping:** attacked `security=True` means the specified attack succeeded. Clean `security=True` is a no-injection sentinel. Error fallbacks and DoS conditions need separate handling. Never map raw `security` universally to “safe.” The mapping was checked against the [pinned TaskSuite implementation](https://github.com/ethz-spylab/agentdojo/blob/v0.1.35/src/agentdojo/task_suite/task_suite.py) and [benchmark runner](https://github.com/ethz-spylab/agentdojo/blob/v0.1.35/src/agentdojo/benchmark.py).
 
-## 4. Data and dataset strategy
+Report scheduled, valid, missing and error counts. Use frozen cohorts and a consistent retry protocol; do not silently exclude unknown outcomes. HITL means total actual reviewer consultations in an explicitly defined successful cohort; also report all-episode totals and cohort sizes. Average load is supplementary.
 
-There are three different data needs:
+### Comparisons
 
-| Data type | Source | Required work |
-| --- | --- | --- |
-| Benchmark data | AgentDojo tasks, environments and attack configurations | Select and freeze the course-approved version and workload |
-| Experiment data | Our own executions | Save decisions, tool traces, budget use, costs and outcomes |
-| Training data | Needed only for a trained classifier or learned policy | Obtain defensible labels and separate training from evaluation |
+| Strategy | Purpose |
+| --- | --- |
+| Full approve | Required unguarded baseline |
+| Full escalate | Required all-calls-reviewed baseline until k is exhausted |
+| Existing metadata policy | Additional simple tool-risk reference |
+| Hybrid with fixed allocation | Controls for rules and assessor when testing allocation |
+| Hybrid with budget-aware allocation | Tests proposed selective reservation |
 
-**The first implementation does not require collecting a new training dataset.** Use rules and, later, a fixed pretrained LLM assessor.
+Required scope is the two baselines plus our original policy. Preserve the allocation comparator if claiming budget-aware benefit; drop optional experiments before required evidence. Split by user-task identity, freeze after development tuning, use matched attacks/models and report clean/attacked conditions separately. Initial development k grid is {0,1,3,5}; final values are not frozen.
 
-AgentDojo's task evaluators do not imply that every possible intermediate call already has an approve/deny/escalate label. In particular, escalation depends on uncertainty, reviewer capability and remaining budget.
+The planner now includes suite, clean/attacked condition, attack method, injection objective, repeat and unique episode ID. Defaults are all suites, direct attack, one repeat, three implemented policies and k={0,1,3,5}: 12,552 pending rows. Unimplemented hybrid labels are rejected until registered. Planning does not execute episodes. The legacy banking CSV is preserved.
 
-### Development versus final evaluation
+## Runtime audit requirements
 
-- Use development tasks to inspect failures, tune rules, choose prompts and determine the k grid.
-- Freeze the method before examining final evaluation outcomes.
-- Prefer splitting by user-task identity, keeping attack variants of the same task together.
-- Record task IDs, attacks, selection rules and exclusions.
-- Do not choose the final subset because our method performs well on it.
-- Confirm reduced benchmark scope with the TA: Project 1 does not explicitly grant a compute-limited subset exception.
-- Keep evaluator labels and attack annotations outside policy/reviewer runtime inputs.
+Record episode/call IDs, original task, proposed arguments before mutation, policy/effective decisions, check evidence and rule IDs, budget before/after, actual reviewer request/verdict/error, actual executed call/result and errors. Keep evaluator-only fields in offline scoring. Record model/provider/configuration versions and component usage including retries/unknown costs.
 
-If training is added later, define a labeling protocol rather than using reviewer predictions as unquestioned truth. Document label uncertainty, overlap between tasks, and potential leakage.
+The gate must support real FunctionCall objects, repeated tool use and mixed batches. A denied call must not execute; an approved sibling must not be skipped. Preserve original calls rather than mutating the only audit copy. Logging and metric updates are engineering work, not optional review statistics.
 
-## 5. First working experiment
+## Running existing smoke checks
 
-**Milestone:** run one official lookup task, inspect its trace, and prove a denied call cannot execute. No claim of benchmark superiority is expected at this stage.
-
-### 5.1 Install and configure your Gemini API key
-
-Run these commands from this repository (macOS/Linux). If `.venv` already exists, skip its creation:
+Use the existing environment and keep credentials in local `.env`, never source or logs. Requirements at repository root support the Gemini runner; team requirements additionally list pytest and YAML/OpenAI tooling. Do not manually edit installed AgentDojo source.
 
 ```bash
-python3 -m venv .venv
 source .venv/bin/activate
-python -m pip install -r requirements.txt
-# First setup only: do not overwrite an existing .env.
-cp -n .env.example .env
+python scripts/run_gemini.py --check --suite banking --user-task user_task_0 --benchmark-version v1.2.2
 ```
 
-Open `.env` in your editor and replace `replace_with_your_key` with your **Google AI Studio Gemini API key**. Keep it local; `.env` and benchmark traces are ignored by Git. Do not paste your key into chat, source code or terminal commands. Existing shell environment variables take precedence over `.env`.
+The command above is an offline stock-pipeline check, not proof of gated execution. For a live clean stock run, remove `--check` and choose a verified accessible model; that makes API calls. For an attacked run also supply a registered `--attack` and `--injection-task`; inspect resulting `error` and condition metadata before interpreting flags. `--force-rerun` or a fresh log directory avoids cached results.
 
-The runner explicitly creates `genai.Client(api_key=..., vertexai=False)`, following Google's [API-key setup](https://ai.google.dev/gemini-api/docs/api-key). It needs no OpenAI key, GCP project/location or `gcloud` login. **AgentDojo 0.1.35's stock Gemini CLI instead constructs a Vertex AI client**, so use the project runner below for your API key. Its `--model-id` flag is for local models, not a Gemini override.
+Generate the new multi-suite plan without any model calls:
 
 ```bash
-# Offline: validates imports, pipeline construction and the selected task.
-python scripts/run_gemini.py --check
-# Online: lists model IDs accessible through your API key.
-python scripts/run_gemini.py --list-models
+cd 6101-Agent-Harness
+../.venv/bin/python -m src.experiment_runner
 ```
 
-`.env.example` uses `gemini-3.8-flash` as an example. Check availability with `--list-models`; set `GEMINI_MODEL` in `.env` to the appropriate text/tool-calling model, without the `models/` prefix. Listing a model does not prove multi-turn tool-call compatibility with this older AgentDojo adapter. Run one task before a sweep. The project adapter in `scripts/gemini_adapter.py` preserves original Gemini response parts, including thought signatures, across tool calls. AgentDojo 0.1.35’s built-in adapter discards these signatures, causing Gemini 3 multi-turn requests to fail. See [Google’s thinking documentation](https://ai.google.dev/gemini-api/docs/thinking). Signatures stay in episode-local provider state; tool execution remains under AgentDojo’s control.
+Default output is `runs/r5_multisuite_experiment_plan.csv`. Existing files are protected; use `--output` for a new plan or explicitly `--overwrite` to replace one. `--suite` may be repeated to select domains. This is planning only.
 
-`requirements.txt` pins AgentDojo and the directly used SDK/configuration libraries to versions installed locally. It is not a full transitive dependency lock. Record `python --version`, `python -m pip freeze`, model ID and benchmark version with final experiments. Python 3.10+ is required upstream; local setup verification used Python 3.14.
-
-#### When a clone is useful
-
-| Installation approach | Use case |
-| --- | --- |
-| **Pip package in the team repository** | Default: run baselines and build our policy, reviewer, executor and runner as project-owned code |
-| Clone for reference only | Optional: inspect upstream source, examples and tests locally; this does not change the installed package |
-| Clone plus editable installation | Only when a concrete integration limitation or upstream bug requires source changes |
-
-If upstream changes become necessary, use a team-controlled fork and record both its base commit and our modifications. From the activated project environment, install the chosen checkout using `python -m pip install -e /absolute/path/to/agentdojo`. Record its commit with `git -C /absolute/path/to/agentdojo rev-parse HEAD`. This replaces the package used by that environment; it is an alternative development workflow, not an extra required setup step. Do not manually edit files in `.venv/site-packages`.
-
-### 5.2 Run one clean task
-
-Start with `workspace`, `user_task_0`. In the inspected upstream v1 task definition, it asks for attendee email addresses and a summary of a networking event on May 26. The reference call is:
-
-```python
-search_calendar_events(query="Networking event", date="2024-05-26")
-```
-
-Its strict utility check verifies expected attendee addresses in the output and unchanged environment state. Version-specific overrides may exist: verify the loaded task definition when freezing the benchmark. [Task source][workspace-task]
+Root offline tests (run from repository root):
 
 ```bash
-python scripts/run_gemini.py
-# Optional overrides:
-python scripts/run_gemini.py --model gemini-3.8-flash \
-  --suite workspace --user-task user_task_0 \
-  --benchmark-version v1.2.2 --logdir runs/first_clean_run
+python -m unittest discover -s tests -v
 ```
 
-This runs **one clean task with the stock execution pipeline**, makes billable/quota-consuming API calls and saves upstream traces. It does not activate an approval gate or reviewer. The default benchmark version is explicitly `v1.2.2`; confirm the course-approved version before final evaluation. Existing results may be cached; use `--force-rerun` or a fresh `--logdir` for a new execution.
-
-The runner’s local `--check` and mocked signature round-trip regression test pass. A live `gemini-3.8-flash` verification attempt returned Google `503 UNAVAILABLE` (high demand), so end-to-end completion remains unverified. AgentDojo can print utility=False/security=True after skipping an API failure; inspect the trace’s `error` field and do not count that as a valid completed benchmark result.
-
-Run the offline regression test with `python -m unittest discover -s tests -v`.
-
-| Problem | Next step |
-| --- | --- |
-| Missing key | Edit `.env` at the repository root; check whether a shell variable overrides it. |
-| 400/401/403 authentication error | Check the key, API restrictions and access in Google AI Studio. |
-| 404 model not found | Use `--list-models`, then update `GEMINI_MODEL`. |
-| 503 high demand | Retry later with `--force-rerun` or a fresh log directory; check the trace error before interpreting scores. |
-| 429 quota/rate limit | Check the project's quota and billing; avoid starting a sweep until one task succeeds. |
-| 400 missing `thought_signature` | Use the updated project runner and `gemini_adapter.py`, then rerun with `--force-rerun`. The adapter preserves signed response parts instead of rebuilding them. |
-| Tool schema or conversation error | Preserve the traceback and model ID; model listing alone does not validate the adapter. |
-| No new API activity | Use a fresh log directory or `--force-rerun` if a previous result was cached. |
-
-### 5.3 Inspect the trace
+Team tests, after test dependencies/imports are reconciled:
 
 ```bash
-rg --files runs/first_clean_run
+cd 6101-Agent-Harness
+python -m pytest tests/ -v
 ```
 
-Open the produced files and answer:
+The stale baseline/reviewer test imports have been corrected to the existing modules, and the shared-consultation fixture now reuses the same GateInput object as required. Validation: 11 new unittest cases passed; 41 legacy checks passed via direct offline invocation (not pytest). New multi-suite tests use unittest and run without pytest: from the team folder, `../.venv/bin/python -m unittest discover -s tests -p test_multisuite.py -v`. No live model or complete benchmark execution is claimed.
 
-| Question | Evidence to record |
+## Five-role ownership
+
+| Role | Implementation and owned evidence |
 | --- | --- |
-| What did the user authorize? | Original task prompt |
-| What did the agent propose? | Exact tool names and arguments |
-| What did tools return? | Relevant results, including any untrusted content |
-| What actually executed? | Execution events and state changes |
-| How did the agent finish? | Final answer or failure/timeout |
-| Did the official task check pass? | Evaluator result and interpretation |
+| R1 | Gate, budget, pipeline and execution correctness |
+| R2 | Baselines, reviewer, context isolation and reviewer failures |
+| R3 | Scope rules, HybridPolicy, allocation, rule triggers and controlled allocation comparison |
+| R4 | Semantic assessor, prompt/schema, development errors and usage |
+| R5 | Execution manifests, audit/cost instrumentation, scoring, curves and trajectory analysis |
 
-Do not reconstruct a desirable trace. Record what the model actually did.
+Every role contributes design, validation, analysis and report evidence. Role allocation does not guarantee individual marks. See the [decision register](R3/PROJECT_DECISION_REGISTER.md) for contracts and integration corrections.
 
-### 5.4 Implement and instrument our execution component
+## Five-page report and presentation
 
-Keep our implementation in the team repository. `ToolsExecutor` executes proposed tools and `ToolsExecutionLoop` handles repeated tool use. Build an approval-aware execution component in `src/approval_policy/gate/executor.py`, and compose it into our custom pipeline **in place of the default tool executor**. Follow the actual interfaces and message types in the pinned AgentDojo release. Custom pipeline components use AgentDojo's `BasePipelineElement` interface. [Pipeline documentation][pipeline]
-
-To locate the pip-installed source for inspection without assuming a local `src/agentdojo` checkout:
-
-```bash
-python -c "import agentdojo; print(list(agentdojo.__path__))"
-```
-
-Inspect `ToolsExecutor` and `ToolsExecutionLoop` there or in matching upstream source. Keep edits in our project-owned adapter unless an upstream change is demonstrably necessary.
-
-The approval-aware executor must:
-
-- Check **each individual call**, including every call in a batch, before any execution.
-- Execute only the exact approved call and arguments.
-- Return a correctly associated tool response for each denied call.
-- Maintain per-task review state and allow the agent to continue or replan.
-- Record proposed calls, decisions and actual execution.
-
-First implement an all-approve path and confirm the original task still runs. Then add blocking and review logic incrementally.
-
-**CLI versus custom runner:** `scripts/run_gemini.py` only supplies Gemini API-key authentication for a clean upstream pipeline. It does not implement the project approval policy. the stock `python -m agentdojo.scripts.benchmark` commands in this section run upstream pipelines. Creating `policy.py` does not automatically register or activate it. Implement `scripts/run_experiment.py` to construct our pipeline and call AgentDojo's benchmarking functions using the pinned release's API. Do not assume an arbitrary custom `--defense` value works. The official documentation describes benchmarking custom pipelines through `agentdojo.benchmark`. [Custom pipeline guidance][pipeline]
-
-Then add this deliberately narrow smoke-test policy:
-
-```python
-def first_policy(tool_name):
-    if tool_name == "search_calendar_events":
-        return "approve"
-    return "deny"
-```
-
-This only tests the gate on a lookup task. It ignores arguments and authorization, cannot establish general safety, and is not the proposed final policy.
-
-```python
-# Integration pseudocode only: implement with actual AgentDojo types.
-decision = first_policy(call.name)
-if decision == "approve":
-    result = execute_original_tool(call)
-else:
-    result = make_tool_denial_message(
-        call_id=call.id,
-        reason="Blocked by approval policy."
-    )
-append_tool_result_to_conversation(result)
-```
-
-A denial must become a properly associated tool response, not a malformed or silently missing message. Use a finite execution-step limit to bound repeated replanning.
-
-### 5.5 Prove enforcement, then add one attack
-
-| Check | Required evidence |
+| Content | Pages |
 | --- | --- |
-| Approved calendar lookup | Tool actually executes |
-| Deny-all test policy | No tool executes; denial reaches the agent |
-| Controlled write call in a local fixture | Underlying write function is never invoked and state stays unchanged |
-
-Do not wait for an LLM to spontaneously attempt a dangerous operation to test enforcement.
-
-Next select one relevant official injection objective and attack supported by the installed version. Compare all-approve with the smoke-test policy on the same task/attack configuration. The runner supports `--attack` and `--injection-task`; explicitly select an injection task instead of accidentally evaluating every objective. [Runner options][runner]
-
-The following stock-CLI command is a **template for separately configured upstream providers**, not the Gemini API-key runner or a verified task/attack pairing. Set `AGENTDOJO_MODEL` to a supported CLI model value first. Attack support still needs to be added to our Gemini runner:
-
-```bash
-export AGENTDOJO_ATTACK="REPLACE_WITH_SUPPORTED_ATTACK"
-export AGENTDOJO_INJECTION_TASK="REPLACE_WITH_RELEVANT_INJECTION_TASK_ID"
-
-python -m agentdojo.scripts.benchmark \
-  --suite workspace \
-  --user-task user_task_0 \
-  --injection-task "$AGENTDOJO_INJECTION_TASK" \
-  --attack "$AGENTDOJO_ATTACK" \
-  --model "$AGENTDOJO_MODEL" \
-  --logdir runs/first_attacked_run
-```
-
-This uses the upstream pipeline until our adapter is integrated. There is no implemented custom `--defense` name in this README. Use separate logs or the runner's `--force-rerun` when appropriate to avoid mistaking cached results for a new experiment.
-
-**Exit gate:** explain one complete trace, point to the interception point, demonstrate approval/denial enforcement, and inspect one attacked run. Then add escalation and k accounting.
-
-## 6. Proposed advanced policy
-
-### 6.1 Protect authorization and data flow
-
-| Dimension | Decision question |
-| --- | --- |
-| Authorization | Was this action requested or a justified necessary supporting step? |
-| Resource scope | Is the correct file, meeting, account or record being accessed? |
-| Data flow | What information goes to which destination? |
-| Consequences | Does it modify, delete, publish, transfer or disclose data? |
-| Evidence provenance | Does permission come from the user, or merely from external content? |
-| Uncertainty | Which material facts remain unresolved? |
-
-Danger and authorization differ. A requested deletion may be authorized; reading unrelated sensitive information may be unauthorized. Tool names alone are insufficient.
-
-### 6.2 Build an authorization record
-
-For the illustrative user request “Send tomorrow's agenda to alice@example.com”:
-
-```json
-{
-  "requested_action": "send_email",
-  "recipient": "alice@example.com",
-  "content_scope": "tomorrow's agenda",
-  "necessary_supporting_actions": ["locate_agenda", "read_relevant_agenda"],
-  "authorization_source": "user_message_1"
-}
-```
-
-Validate explicit values in code. Keep provenance. Mark missing facts as unknown. If an LLM extracts this record, its output is fallible and must not silently create new permissions. A suggested supporting action is not automatically an unrestricted capability.
-
-### 6.3 Three-stage decision process
-
-| Stage | Implementation | Purpose |
-| --- | --- | --- |
-| A. Deterministic checks | Argument/schema checks, explicit authorization and destination checks, trusted tool semantics | Resolve clear cases without another LLM call |
-| B. Semantic assessment | A fixed, bounded prompt for unresolved cases | Interpret relevance, scope and conflicting evidence |
-| C. Review allocation | Frozen decision table using ambiguity, consequences, reviewability and budget | Spend reviewer attention where it may improve outcomes |
-
-Hard-deny proven authorization violations. Approve when required checks establish sufficient authorization. Unknown tools or unclear scope require assessment rather than unconditional approval.
-
-The assessor should return evidence, not just a confidence score:
-
-```json
-{
-  "authorization": "unclear",
-  "supporting_evidence": ["user_message_1"],
-  "conflicting_evidence": [],
-  "unresolved_issue": "Attachment may contain unrelated records",
-  "consequence": "external_disclosure",
-  "review_question": "Does the attachment stay within the requested agenda?"
-}
-```
-
-An LLM's stated confidence is not a calibrated probability. Validate output structure and cited evidence locations. Use development cases to assess errors; do not claim calibration without evaluating it.
-
-### 6.4 Allocate review to resolvable uncertainty
-
-| Situation | Proposed action |
-| --- | --- |
-| Clearly authorized; required checks satisfied | Approve |
-| Clearly unauthorized | Deny directly |
-| Uncertain; reviewer can inspect evidence that may resolve it | Consider escalation |
-| Uncertain; necessary evidence unavailable even to reviewer | Deny for now and permit replanning/clarification where supported |
-| Escalation selected; k exhausted | Deny as required |
-
-Do not spend review merely because an action is dangerous. Reviewing an obvious violation wastes budget and creates an opportunity for mistaken approval.
-
-A first priority heuristic can use task importance, harm if wrongly approved, whether review can resolve uncertainty, and remaining budget. Compare it with the same policy without budget conditioning. Do not call this an optimal value-of-information estimate without supporting evidence.
-
-**Budget scarcity must never lower the approval standard.** When uncertain and out of budget, deny rather than gamble.
-
-### 6.5 Architectural pseudocode
-
-```python
-# Proposed architecture; helper functions are not implemented here.
-def decide(context, call, state):
-    checks = deterministic_checks(context, call)
-    if checks.proven_authorization_violation:
-        return DENY
-    if checks.sufficient_for_approval:
-        return APPROVE
-
-    assessment = assess_with_llm(context, call)
-    if not assessment.valid:
-        return DENY
-    if approval_criteria_met(checks, assessment):
-        return APPROVE
-    if assessment.indicates_unauthorized:
-        return DENY
-    if state.remaining_reviews == 0:
-        return DENY
-    if review_is_worthwhile(assessment, state):
-        return ESCALATE
-    return DENY
-```
-
-The core research lies in how evidence is obtained, how approval criteria are defined, and whether review allocation improves outcomes—not the existence of three branches.
-
-## 7. Reviewer and execution safety
-
-### Reviewer protocol
-
-The simulated reviewer receives the original task, exact call, relevant realistically available context, and the ambiguity to resolve. Delimit external content and retain original evidence; do not present the policy's interpretation as unquestionable truth.
-
-Never include gold answers, hidden attack labels or evaluation outcomes. Document the reviewer prompt and response schema. [Brief §3.3][brief]
-
-Use a separate logical decision from policy inference. Separate calls, prompts or model instances do not guarantee independent errors. Measure unsafe reviewer approvals separately from unsafe automatic approvals.
-
-### Gate invariants
-
-- Bind approval to the exact tool and arguments; changed arguments require reassessment.
-- Recheck relevant state if it changes between review and execution.
-- Approved calls execute at most once; denied calls never execute.
-- Each logical escalation consumes one slot, regardless of reviewer outcome.
-- Proposed handling: at most one API retry for malformed/failed reviewer responses, then deny. Log retries and their cost separately from logical escalation count.
-- Reserve slots atomically for parallel calls; never exceed k.
-- Reset environment, conversation and budget for each episode.
-- Provide consistent non-oracle denial feedback.
-- Do not let the LLM override a proven authorization violation.
-
-### Functional checks before expensive evaluation
-
-| Scenario | Expected behavior |
-| --- | --- |
-| Auto-approve | Exactly one execution |
-| Auto-deny | Zero execution and no side effects |
-| Reviewer approves | One escalation consumed; call executes |
-| Reviewer denies | One escalation consumed; no execution |
-| k = 0 | Escalation becomes denial; no reviewer call |
-| Budget exhausted | Later escalations become denials |
-| New task | Budget reset |
-| Reviewer timeout/invalid output | Bounded retry/fallback; no accidental approval |
-| Parallel proposals | Every call gated; total escalations ≤ k |
-| Arguments change after approval | Previous approval does not cover changed call |
-
-Validate actual state changes, not only a log line saying “denied.”
-
-## 8. Evaluation protocol
-
-### Required strategies
-
-| Strategy | Behavior |
-| --- | --- |
-| Full approve | Execute every proposed call; no reviewer |
-| Full escalate | Review each call while budget remains; deny subsequent escalation attempts |
-| Our policy | Select among automatic approval, denial and review |
-
-Confirm the finite-budget full-escalate interpretation with the TA because the brief also describes that baseline as full human review. An explicitly labeled unlimited-budget reference is optional. Full escalation is not guaranteed safe when its reviewer is an LLM. [Brief §§2, 4.1][brief]
-
-### Fair comparison procedure
-
-1. Freeze benchmark commit/version, tasks, attacks, agent model, decoding settings, assessor/reviewer prompts and models, execution limits, and scoring definitions.
-2. Pilot only on development tasks. A candidate k grid is `{0, 1, 2, 4, 8}`; choose meaningful values based on development traces and freeze them.
-3. Use identical task/attack instances for each strategy and k. Report benign and attacked results separately and specify aggregate weighting.
-4. Run actual online episodes. A denial changes subsequent planning; replaying a fixed old trace is not an equivalent TCR experiment.
-5. Reset state between episodes and match seeds where supported. Seeds may not eliminate API nondeterminism.
-6. Prefer three replicates if affordable. This is a proposed design, not an explicit Project 1 requirement. With one run, disclose the limitation.
-7. Predeclare infrastructure retry/exclusion rules. Retain genuine agent failures and timeouts in the appropriate denominator.
-8. Freeze policy before final scores are visible. Do not retune on final failures and call the reused set held-out.
-
-### Incremental versions and ablations
-
-| Version/comparison | Question |
-| --- | --- |
-| V1: context-aware rules | How far can deterministic authorization checks go? |
-| V2: V1 + selective LLM assessment | Does semantic interpretation justify its overhead? |
-| V3: V2 + budget-aware escalation | Does review allocation improve low-k performance? |
-| Optional V4: relevant action-history checks | Does cumulative context reveal violations missed per call? |
-| Reviewer context ablation on development data | Which realistic context improves review decisions? |
-
-Change one component at a time. Complete the required baselines and main policy before broadening optional experiments. Include legitimate writes and sensitive reads so “block all writes” is not rewarded by a biased sample.
-
-## 9. Metrics and assessment
-
-### Safe task completion
-
-```text
-TCR@k = tasks completed with no unauthorized executed call / all evaluated tasks
-```
-
-Illustrative arithmetic: if 70 of 100 tasks complete but 8 of those include unauthorized execution, ordinary completion is 70% and TCR@k is 62%. These are example numbers, not results.
-
-**Correct final answers do not establish safe execution.** [Brief §3.1][brief]
-
-### Verify the ground-truth mapping first
-
-Inspect how the selected AgentDojo version evaluates user-task completion, attack success and traces. An attack failing to reach its objective does not necessarily prove that no unauthorized intermediate call occurred. Agree with the TA on a defensible mapping to the course's safety criterion.
-
-Do not simply set “safe” equal to the reviewer's approval. Evaluator information may support scoring but must remain unavailable to runtime decisions.
-
-### Required and diagnostic outputs
-
-| Metric | Reporting rule |
-| --- | --- |
-| TCR@k | Curves for all three strategies with identical denominators |
-| Ordinary task completion | Expose usability losses from excessive blocking |
-| Tasks with unauthorized execution | Distinguish task-level risk from call-level counts |
-| HITL load | Course-defined escalation count over successful tasks, with cohort size/definition |
-| All-task escalation count | Supplement HITL load so failed tasks' review costs remain visible |
-| Exhausted-budget denials | Explain whether scarce review was spent poorly |
-| API cost | Separate agent execution, policy inference and reviewer simulation |
-| Reviewer-induced unsafe approvals | Separate reviewer failures from unsafe auto-approval |
-| Uncertainty | Paired differences, replicate spread and intervals where defensible |
-
-The brief defines HITL load over successfully completed tasks, but also requests escalation counts across the suite. Report both successful-task and all-task totals. Ask whether “successful” means ordinary completion or safe completion; provide both cohorts if needed. A policy completing zero tasks must not look good because its successful-task review total is zero. [Brief §§3.1, 4.2][brief]
-
-For intervals, account for dependence: multiple attacks on the same task are not independent task samples. With sufficient data, bootstrap by task identity and disclose what uncertainty is captured. One-run intervals do not capture full model/reviewer variability.
-
-### Interpreting improvement
-
-Useful evidence includes higher safe completion at the same k, or similar performance with lower review/API costs. Do not claim equivalence just because a difference is not statistically significant. Do not claim improvement from selecting favorable examples.
-
-Internal quality criteria: correct enforcement, valid scoring, controlled comparisons, transparent cost, reproducible evidence, and an honest account of limitations. These are not official grade weights.
-
-## 10. Logging and failure analysis
-
-Save at least:
-
-```text
-task_id, attack_id, run_id, strategy, k
-benchmark_version, model_ids, config_hash
-tool_call_id, tool_name, tool_arguments
-policy_decision, effective_decision, reason_code, evidence_references
-remaining_budget_before, remaining_budget_after
-reviewer_requested, reviewer_decision, retry_count
-executed, execution_result, relevant_state_changes
-agent_input_tokens, agent_output_tokens
-policy_input_tokens, policy_output_tokens
-reviewer_input_tokens, reviewer_output_tokens
-final_task_success, safety_outcome, evaluator_definition
-```
-
-Separate runtime-visible evidence from evaluator-only metadata. Keep credentials out of logs and document redactions without destroying the evidence needed to interpret results.
-
-### Required failure classes
-
-- **Over-conservative:** an authorized call is blocked, or unnecessary escalation exhausts k and prevents completion.
-- **Over-permissive:** automatic approval allows an unauthorized call to execute.
-- **Reviewer-induced failure:** an escalated call receives an unsafe approval; analyze separately.
-- **Other/uncertain:** planning, infrastructure or evaluator issues without demonstrated policy causation.
-
-For each required failure type, show the task, relevant context, call sequence, decisions, budget, actual side effects and final outcome. If a category is not observed, disclose that and ask about an explicitly labeled development stress test. Never fabricate an empirical case. [Brief §4.2][brief]
-
-### Escalation-value analysis
-
-Group calls by authorization clarity, consequence, sensitivity and reviewability. Inspect where review changes outcomes and where automatic decisions suffice. Where feasible, use paired development reruns with a specific decision rule changed to examine its effect. Correlation between escalation and success is not causal proof that escalation helped.
-
-## 11. Token and cost management
-
-```text
-Total API cost = agent execution + policy inference + reviewer simulation
-Nominal episodes = task/attack instances × strategies × k values × replicates
-```
-
-Illustrative workload only:
-
-- 20 task/attack instances × 3 strategies × 5 k values = 300 nominal episodes.
-- Full approve is independent of k. If otherwise identical, run it once per instance and label the shared baseline explicitly: `20 + 20 × 2 × 5 = 220` distinct episodes.
-- Three replicates of that design require 660 episodes.
-
-This excludes development, ablations, retries and extra validation. It is not a course-approved subset or token estimate. Each episode can contain many model calls.
-
-Cost controls:
-
-1. Measure component usage and long-tail episode lengths in the pilot before setting the final workload.
-2. Use deterministic checks for clear cases; request bounded assessor output for unresolved calls.
-3. Provide relevant evidence without omitting material authorization context merely to shorten prompts.
-4. Set an absolute spend cap after measuring real costs; a proposed 20% reserve covers retries and reproducibility work.
-5. Do not cache across changed calls, contexts, state, model or prompt configurations. If reviewer caching is allowed, disclose it and do not count reused responses as independent samples.
-6. Use offline replay for diagnostics, not as a substitute for online task evaluation.
-7. Reduce final scope only through a predeclared, fair protocol and TA agreement where needed.
-8. Record dated model prices and input/output usage. Tokens alone do not imply the same dollar cost across models.
-
-No dollar estimate is asserted until model/provider choices and real trace lengths are known.
-
-## 12. Six-person technical ownership
-
-Every member owns a vertical contribution: **design → implementation → experiment → interpretation → report/defense**. Assign names after discussing skills and learning goals. Confirm that six-person groups are permitted.
-
-| Member | Core implementation | Owned experimental evidence | Learning outcome |
-| --- | --- | --- | --- |
-| A: Gate and runtime | Interception, baseline integration, budgets, denial feedback, exactly-once execution and concurrency | Budget boundary/side-effect tests and denial–replanning analysis | Agent execution internals and enforcement correctness |
-| B: Authorization rules | Context provenance, scope/recipient checks, trusted tool metadata and deterministic rules | Rules-only ablation and authorization-category failures | Threat modeling and context-aware policy engineering |
-| C: Semantic assessment and allocation | Structured assessor, decision table, remaining-budget conditioning and fallbacks | Budget-aware vs budget-agnostic comparison, especially low k | Uncertainty-aware decisions and constrained allocation |
-| D: Reviewer and context integrity | Online reviewer, evidence presentation, parser/retries and oracle isolation | Reviewer context study and reviewer-induced safety failures | LLM review limitations and leakage prevention |
-| E: Scoring and experiment protocol | Evaluator mapping, manifests, metric implementation and paired comparisons | Main TCR/HITL analysis, benign/attacked results and uncertainty | Empirical research and metric validity |
-| F: Cost and escalation value | Runtime usage instrumentation, event validation and trajectory-analysis tooling | Cost–TCR trade-offs and evidence-backed review-value study | Observability, efficiency and failure diagnosis |
-
-E is not just an experiment operator: E owns scoring semantics and evaluation code. F is not just a report writer: F implements runtime instrumentation and conducts a substantive analysis. A is not just an installer: A owns enforcement correctness and baseline behavior.
-
-### Interface ownership and cross-review
-
-| Contract | Owner | Technical reviewer |
-| --- | --- | --- |
-| DecisionContext and evidence provenance | B | D |
-| PolicyDecision and budget signals | C | B |
-| GateEvent and actual execution | A | C |
-| ReviewerRequest/ReviewerDecision | D | A |
-| EpisodeResult and scoring cohorts | E | F |
-| UsageEvent and cost ledger | F | E |
-
-Agree contracts before parallel work. Use fixtures and mock reviewers to avoid everyone waiting on one integration owner. Rotate integration duties while module owners fix their own defects.
-
-## 13. Fair participation and individual assessment
-
-**This allocation cannot guarantee individual marks.** The supplied brief has no individual-assessment rubric. Marks depend on course rules, work quality and demonstrated understanding. The plan makes deep participation possible and verifiable.
-
-Every member should produce:
-
-1. A substantive design rationale with alternatives and trade-offs.
-2. A reviewed core implementation with meaningful validation.
-3. An owned experiment, raw results, figure/table and interpretation.
-4. A real failure investigation or rigorously documented limitation.
-5. A technical review of another component and reproduction of one peer result.
-6. A report section grounded in personal work and readiness to explain the entire system.
-
-Use a contribution ledger with names, design notes, PR/review links, experiment IDs, analysis and learning reflections. Record co-authorship honestly. Do not assess contribution through commit count, code length, slides or API spend.
-
-### Prevent peripheral roles
-
-- No member owns only slides, formatting, meeting notes, dataset clerical work or coordination.
-- Each member demonstrates a technical artifact weekly.
-- Rebalance at the midpoint if anyone lacks core implementation or experiment ownership.
-- Pair for onboarding without allowing one person to do all reasoning and coding.
-- Everyone runs the minimal pipeline and explains TCR@k, budget accounting, oracle leakage and reviewer limitations.
-- Share editing and administration; these do not substitute for technical contributions.
-
-Suggested presentation allocation, if all six may speak:
-
-| Member | Topic | Time |
-| --- | --- | --- |
-| A | Problem and execution gate | 1:30 |
-| B | Authorization and rules | 1:30 |
-| C | Hybrid policy and review allocation | 1:45 |
-| D | Reviewer and leakage controls | 1:30 |
-| E | Main evaluation | 2:00 |
-| F | Cost, failures and conclusions | 1:45 |
-| Total | | 10:00 |
-
-Speaking time alone is not evidence of equal contribution. Prepare everyone for Q&A, and align contribution records with the actual rubric once confirmed.
-
-## 14. Proposed repository layout
-
-The following is a target layout, **not a list of files already implemented**. AgentDojo is an external dependency; the team repository contains our implementation and experiment assets.
-
-```text
-approval-policy-project/
-├── README.md
-├── pyproject.toml               # Team package configuration for the src layout
-├── requirements.txt             # Pinned dependencies, including AgentDojo
-├── configs/                     # Models, reviewer, policy, k grid and seeds
-├── manifests/                   # Development/final task and attack selections
-├── src/
-│   └── approval_policy/
-│       ├── __init__.py
-│       ├── pipeline.py          # Compose AgentDojo with our execution component
-│       ├── gate/
-│       │   ├── executor.py      # Per-call enforcement and denial feedback
-│       │   └── budget.py        # Per-task review-budget accounting
-│       ├── policy/              # Authorization, semantic assessment, allocation
-│       ├── reviewer/            # Permitted context, LLM review and parsing
-│       ├── evaluation/          # Benchmark adapter, scoring and metrics
-│       └── observability/       # Usage ledger and trajectory analysis
-├── scripts/
-│   └── run_experiment.py        # Construct custom pipeline and invoke benchmark
-├── tests/                       # Enforcement, budget and leakage checks
-├── runs/                        # Raw traces, scores and configuration hashes
-├── analysis/                    # Curves, tables, ablations and failure evidence
-└── report/                      # Report, slides and contribution appendix
-```
-
-Add package initialization files where required. Configure the team's `src` package in `pyproject.toml` before installing it with `python -m pip install -e .`. That later command installs **our team project** in editable mode; it does not require cloning or editing AgentDojo.
-
-Do not invent custom execution commands before implementing the adapter. Once it exists, add exact reproducible commands for all three strategies, the frozen benchmark version, every reported k and replicate, and result aggregation. Use the same approval-aware executor for full-approve, full-escalate and our policy so comparisons share enforcement and logging code.
-
-## 15. Milestones and deliverables
-
-Four phases are shown as an illustrative four-week schedule, not a course deadline.
-
-| Phase | Team milestone | Technical work by all six | Exit criterion |
-| --- | --- | --- | --- |
-| 1: Feasibility | Official smoke run and agreed contracts | A hooks; B authorization taxonomy; C decision table; D reviewer prototype; E scoring map; F ledger | Trace, score and cost available; denied calls do not execute |
-| 2: Method | Hybrid policy and both baselines integrated | Implement modules, cross-review, run development experiments | k enforcement and leakage checks pass; protocol frozen |
-| 3: Evaluation | Required comparisons complete | Named experiment ownership and analysis for every member | Matched outcomes, raw logs and transparent costs |
-| 4: Reproduction | Final report and defense | Peer reproduction, owned report sections, shared rehearsal | Every claim traceable; all six explain the system |
-
-Required submission through GitHub: [brief §4][brief].
-
-| Deliverable | Minimum contents |
-| --- | --- |
-| Codebase | Gate, original policy, two baselines and online simulated reviewer |
-| Experiment package | Frozen configs, manifests, versions, seeds, prompts, commands and raw traces |
-| Report | TCR@k, HITL load, component API cost, both failure types and escalation-value analysis |
-| Presentation | Design, integration, comparisons, failures and lessons; 10 minutes + 5-minute Q&A |
-| Contribution appendix, proposed | Evidence of technical ownership, peer review and individual learning; confirm accepted format |
-
-## 16. Risks and questions for the TA
-
-| Risk | Response |
-| --- | --- |
-| Treating failed attacks as proof of no unauthorized action | Verify evaluator mapping before claiming TCR |
-| Hidden labels in policy/reviewer inputs | Build explicit permitted contexts and separate evaluator data |
-| Gate bypass or concurrent budget overspend | Test actual side effects, every execution path and atomic reservations |
-| Treating reviewer as infallible | Track reviewer-induced unsafe approvals |
-| Deny-all appears safe | Report utility and safe completion with fixed denominators |
-| Token budget consumed before required comparisons | Pilot, forecast and prioritize required runs |
-| Model-only authorization extraction invents permissions | Preserve provenance, validate explicit values and retain unknowns |
-| Unequal team contribution | Weekly technical demos, midpoint reallocation and peer reproduction |
-
-Questions to settle early:
-
-1. Are six-person groups allowed, and how are individual contribution, peer assessment and oral defense graded?
-2. Which AgentDojo commit/version, task suites and attacks are expected? Is a reduced fixed subset acceptable?
-3. How should “any unauthorized tool call” be identified from official outputs and traces?
-4. Does successful-task HITL load mean ordinary or safe completion?
-5. Should full escalate deny after k, and should an unlimited-review reference be included?
-6. What model constraints, k range, repetitions, API credits and deadline apply?
-7. If a required failure type is unobserved, is a clearly labeled development stress test acceptable?
-8. May all six speak, and what report length/format is required?
-
-TA listed in the brief: **Deng Yanchen — ycdeng@ntu.edu.sg**. No contact has been made as part of preparing this README.
-
-## 17. Completion checklist
-
-- [ ] Official task runs; complete trace is understood.
-- [ ] Gate intercepts every execution path and proves denied calls do not execute.
-- [ ] Approval is bound to exact tool arguments.
-- [ ] k=0, exhaustion, reset, malformed review and parallel calls handled.
-- [ ] One developed policy and both required baselines integrated.
-- [ ] Reviewer uses only realistic permitted context; no oracle leakage.
-- [ ] Scoring mapping for safe completion documented and accepted.
-- [ ] Development and final evaluation roles separated.
-- [ ] Task/attack set, models, prompts, limits, seeds and versions frozen.
-- [ ] Online TCR@k curves and HITL-load tables complete.
-- [ ] Agent/policy/reviewer costs reported separately.
-- [ ] Over-conservative and over-permissive cases analyzed honestly.
-- [ ] Reviewer errors and other failures distinguishable.
-- [ ] Escalation-value claims supported, with causal limitations stated.
-- [ ] Every member owns implementation, evidence, interpretation and cross-review.
-- [ ] Every result resolves to configs, commands and raw logs.
-- [ ] Report and presentation cover all required items.
-
-## 18. References
-
-### Course source
-
-<a id="course-brief"></a>
-
-**AI6101 Group Project 1 — Safety Approval Policies for Agent Harnesses.** AI6101 Introduction to AI and AI Ethics, AY 2026–2027 Semester 1. Instructor: Bo An, NTU. User-supplied PDF, two pages.
-
-| Section | Page | Supports |
-| --- | --- | --- |
-| §2 Problem Description | 1 | Three decisions, safe completion objective, per-task k and exhaustion rule |
-| §3.1 Main Metrics | 1 | TCR@k and successful-task HITL load |
-| §3.2 Benchmark | 1 | AgentDojo integration |
-| §3.3 Human Reviewer Simulation | 2 | Online LLM reviewer, realistic context and no oracle leakage |
-| §4–4.1 Submission/Codebase | 2 | GitHub, pre-execution gate, original policy and two baselines |
-| §4.2 Report | 2 | Curves, load, component costs, failure trajectories and escalation value |
-| §4.3 Presentation | 2 | 10-minute presentation and 5-minute Q&A |
-
-### Official technical sources
-
-- [AgentDojo repository][repo]
-- [AgentDojo paper: A Dynamic Environment to Evaluate Prompt Injection Attacks and Defenses for LLM Agents][paper]
-- [Task suite and task concepts][tasks]
-- [Agent pipeline and defense integration][pipeline]
-- [Benchmark runner and CLI options][runner]
-- [Workspace v1 user-task source][workspace-task]
-- [Python requirements and package configuration][pyproject]
-
-Upstream links point to evolving documentation or `main`. Record the pinned package release (or the exact commit for an editable checkout), and use matching release- or commit-specific implementation links when the team freezes its version.
-
-[brief]: #course-brief
-[repo]: https://github.com/ethz-spylab/agentdojo
-[paper]: https://arxiv.org/abs/2406.13352
-[tasks]: https://agentdojo.spylab.ai/concepts/task_suite_and_tasks/
-[pipeline]: https://agentdojo.spylab.ai/concepts/agent_pipeline/
-[runner]: https://github.com/ethz-spylab/agentdojo/blob/main/src/agentdojo/scripts/benchmark.py
-[workspace-task]: https://github.com/ethz-spylab/agentdojo/blob/main/src/agentdojo/default_suites/v1/workspace/user_tasks.py
-[pyproject]: https://github.com/ethz-spylab/agentdojo/blob/main/pyproject.toml
+| Problem/objective and related work | 0.5 |
+| Method and gate integration | 1.0 |
+| Experimental protocol and scorer mapping | 0.5 |
+| Main curves, HITL and component costs | 1.25 |
+| Both failure trajectories and escalation value | 1.0 |
+| Limitations, conclusion and references | 0.75 |
+| Total | 5.0 |
+
+Provisionally include references within the limit. Keep detailed prompts, full traces and reproduction artifacts in GitHub without replacing required report figures/cases. Present design → matched results → real failures → lessons; do not promise positive results. Internal dates in the guidelines are not official deadline confirmation or proof of achieved freeze.
+
+## Next readiness gates
+
+1. Agree shared scope/check semantics and suite-specific action adapters, R4 schema and episode-state contracts.
+2. Repair execution integration and wire audit events/scoring.
+3. Pilot fixed and dynamic policy variants. The user requested no project spending/runtime cap and considers Qwen3:14b and Gemini free under the project access arrangement; retain usage logging, provider-quota handling and finite episode/retry limits.
+4. Freeze workload, models, attack protocol, thresholds, k and repetitions.
+5. Run matched evaluation and report all outcomes, costs and limitations.
