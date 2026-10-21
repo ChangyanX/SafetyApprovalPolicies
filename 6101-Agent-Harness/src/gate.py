@@ -1,3 +1,7 @@
+"""Legacy standalone gate fixtures. The connected factory uses GatedAgentPipeline
+(src/gated_runtime.py), which owns repeated interception and execution feedback.
+Do not assemble this legacy query element with stock ToolsExecutor for live runs.
+"""
 # src/gate.py
 from typing import Sequence, Dict, Any, List
 from agentdojo.agent_pipeline import BasePipelineElement
@@ -26,7 +30,9 @@ class GateElement(BasePipelineElement):
         reviewer: Reviewer,
         k: int,
         tool_risk_metadata: Dict[str, Dict[str, Any]],
+        suite_name: str | None = None,
     ):
+        self.suite_name = suite_name or getattr(tool_risk_metadata, "suite_name", None)
         self.policy = policy
         self.reviewer = reviewer
         self.k_remaining = k
@@ -57,8 +63,9 @@ class GateElement(BasePipelineElement):
         blocked_messages = []
 
         for tool_call in messages[-1]["tool_calls"]:
-            meta = risk_for(self.tool_risk_metadata, tool_call["function"])
+            meta = risk_for(self.tool_risk_metadata, tool_call["function"], self.suite_name)
             gate_input = GateInput(
+                suite_name=self.suite_name,
                 tool_name=tool_call["function"],
                 args=tool_call["args"],
                 tool_metadata=meta,
@@ -102,6 +109,7 @@ class GateElement(BasePipelineElement):
             # Record gate result
             self.gate_results.append(
                 GateResult(
+                    suite_name=self.suite_name,
                     tool_name=tool_call["function"],
                     decision=gate_output.decision,
                     approved=approved,

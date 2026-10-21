@@ -22,7 +22,8 @@ def test_build_pipeline_with_k_zero():
     )
 
     assert pipeline is not None
-    assert len(pipeline.elements) == 6
+    assert pipeline.k_remaining == 0
+    assert pipeline.initial_k == 0
 
 
 def test_build_pipeline_with_empty_system_prompt():

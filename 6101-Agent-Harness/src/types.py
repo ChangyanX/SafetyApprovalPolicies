@@ -17,10 +17,14 @@ class GateInput(BaseModel):
     trajectory: List[Dict[str, Any]]
     user_task_text: str
     k_remaining: int
+    suite_name: Optional[str] = None
+    episode_id: Optional[str] = None
+    call_id: Optional[str] = None
 
 
 class GateOutput(BaseModel):
     decision: Decision
+    audit: Optional[Dict[str, Any]] = None
     risk_score: Optional[float] = None
     rationale: Optional[str] = None
 
@@ -31,6 +35,7 @@ class GateResult(BaseModel):
     decision: Decision
     approved: bool
     k_remaining: int
+    suite_name: Optional[str] = None
     rationale: Optional[str] = None
 
 

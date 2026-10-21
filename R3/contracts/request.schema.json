@@ -1,0 +1,160 @@
+{
+  "$defs": {
+    "Check": {
+      "additionalProperties": false,
+      "properties": {
+        "check_id": {
+          "title": "Check Id",
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/CheckStatus"
+        },
+        "reason": {
+          "title": "Reason",
+          "type": "string"
+        },
+        "evidence_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Evidence Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "check_id",
+        "status",
+        "reason"
+      ],
+      "title": "Check",
+      "type": "object"
+    },
+    "CheckStatus": {
+      "enum": [
+        "SATISFIED",
+        "VIOLATED",
+        "UNRESOLVED",
+        "NOT_APPLICABLE"
+      ],
+      "title": "CheckStatus",
+      "type": "string"
+    },
+    "Evidence": {
+      "additionalProperties": false,
+      "properties": {
+        "evidence_id": {
+          "title": "Evidence Id",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "instruction",
+            "observation",
+            "execution"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "source_call_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Call Id"
+        },
+        "content": {
+          "title": "Content"
+        }
+      },
+      "required": [
+        "evidence_id",
+        "kind",
+        "content"
+      ],
+      "title": "Evidence",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "r3-r4/0.1",
+      "default": "r3-r4/0.1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "episode_id": {
+      "title": "Episode Id",
+      "type": "string"
+    },
+    "call_id": {
+      "title": "Call Id",
+      "type": "string"
+    },
+    "proposal_hash": {
+      "title": "Proposal Hash",
+      "type": "string"
+    },
+    "suite": {
+      "title": "Suite",
+      "type": "string"
+    },
+    "tool": {
+      "title": "Tool",
+      "type": "string"
+    },
+    "arguments": {
+      "additionalProperties": true,
+      "title": "Arguments",
+      "type": "object"
+    },
+    "tool_semantics": {
+      "additionalProperties": true,
+      "title": "Tool Semantics",
+      "type": "object"
+    },
+    "task": {
+      "title": "Task",
+      "type": "string"
+    },
+    "checks": {
+      "items": {
+        "$ref": "#/$defs/Check"
+      },
+      "title": "Checks",
+      "type": "array"
+    },
+    "evidence": {
+      "items": {
+        "$ref": "#/$defs/Evidence"
+      },
+      "title": "Evidence",
+      "type": "array"
+    },
+    "question": {
+      "title": "Question",
+      "type": "string"
+    }
+  },
+  "required": [
+    "episode_id",
+    "call_id",
+    "proposal_hash",
+    "suite",
+    "tool",
+    "arguments",
+    "tool_semantics",
+    "task",
+    "checks",
+    "evidence",
+    "question"
+  ],
+  "title": "AssessmentRequest",
+  "type": "object"
+}

@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 from tenacity import wait_none
 
-from src.llm_reviewer import LLMReviewer, firewall_check
+from src.reviewer import LLMReviewer, firewall_check
 from src.types import GateInput
 
 
@@ -50,8 +50,9 @@ DENY = '{"decision": "deny", "reason": "unknown recipient"}'
 
 def test_approve_and_deny_share_one_call():
     r, c = make_reviewer(APPROVE)
-    assert r.approve(gi()) is True
-    assert r.deny(gi()) is False
+    request = gi()
+    assert r.approve(request) is True
+    assert r.deny(request) is False
     assert len(calls(c)) == 1 and r.consultations == 1
 
 

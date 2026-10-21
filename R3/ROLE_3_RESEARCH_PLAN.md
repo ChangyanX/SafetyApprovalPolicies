@@ -2,7 +2,7 @@
 
 Updated **20 October 2026** after checking the team repository and AgentDojo. The latest accepted policy scope includes workspace, travel, banking and Slack; earlier banking-only direction is superseded. See [multi-domain scope](MULTI_DOMAIN_POLICY_SCOPE.md). This replaces obsolete workspace-pilot defaults and claims that all team components remain unimplemented.
 
-**Detailed implementation guide:** [Banking checks, state/evidence contracts, R4 handoff and baseline runbook](ROLE_3_IMPLEMENTATION_AND_BASELINE_RUNBOOK.md). Existing commands are distinguished from proposed runner interfaces.
+**Detailed implementation guide:** [Multi-domain checks, state/evidence contracts, R4 handoff and baseline runbook](ROLE_3_IMPLEMENTATION_AND_BASELINE_RUNBOOK.md). Existing commands are distinguished from proposed runner interfaces.
 
 ## 1. Goal and evidence
 
@@ -12,11 +12,11 @@ The user clarified that official AgentDojo outcomes suffice for evaluation with 
 
 $$\operatorname{TCR}_{\mathrm{AD}}@k=\frac{1}{N}\sum_{i=1}^{N}U_i(1-J_i),\qquad E_i\le k.$$
 
-Report this as AgentDojo-based project TCR. It does not certify the absence of every possible unauthorized call. Report clean utility separately: clean raw security=True is a sentinel, while attacked raw security=True means attack success. See [verified scoring contract](README.md#evaluation-contract).
+Report this as AgentDojo-based project TCR. It does not certify the absence of every possible unauthorized call. Report clean utility separately: clean raw security=True is a sentinel, while attacked raw security=True means attack success. See [verified scoring contract](../README.md#evaluation-contract).
 
 ## 2. What exists and what you own
 
-The team folder has the policy interface, gate/budget code, baseline classes, a metadata policy, LLM reviewer and standalone R5 modules. The integrated gate has audited defects; the scope-aware policy and separate R4 assessor are still missing.
+The team folder has the policy interface, gate/budget code, baseline classes, a metadata policy, LLM reviewer and standalone R5 modules. The new shared execution factory now uses a connected repeated gate; the old standalone gate is legacy-only. The bounded R3 core is now implemented with literal scope rules, episode state, allocation and a stub assessor; the semantic R4 assessor remains pending and live Qwen compatibility awaits a reachable local server. See [implemented workflow](R3_IMPLEMENTED_WORKFLOW.md).
 
 | Role | Responsibility |
 | --- | --- |
@@ -69,8 +69,10 @@ Candidate allocation uses necessity, review resolution value and consequence; re
 
 ## 5. Implementation checkpoints
 
+**Current checkpoint:** R3 v0.1 rules/state/allocation/stub and offline demo are implemented. The minimum contract is supplied in [R4 integration](R4_INTEGRATION.md); this is a concrete handoff for team review, not a claim that R4 has accepted or integrated it. Below retains the overall sequence.
+
 1. Agree suite-aware R1-compatible scope state, evidence IDs, original-task propagation and R4 schema. Existing GateInput/GateOutput are the starting contract, not missing from scratch.
-2. Extend the banking metadata to all 74 suite-tool registrations and review actual semantics and implement shared scope checks and suite-specific semantic adapters with a stub assessor.
+2. Metadata coverage for all 74 suite-tool registrations and the multi-suite offline planner are complete. Implement the shared scope checks and suite-specific semantic adapters with a stub assessor; metadata check names alone do not enforce authorization.
 3. Fix/test actual FunctionCall compatibility, repeated gated tool loop, mixed batches, reset and execution feedback with R1.
 4. Integrate R4 and R2 separately. Add decision layer, check evidence, allocation values, actual review events and executed calls to R5 logs.
 5. Run a usage-instrumented development pilot on clean and attacked tasks. The user requested no project spending/runtime cap and considers Qwen3:14b and Gemini free under the project access arrangement. Qwen3:14b is the user’s provisional choice for agent, R4 assessor and reviewer, with separate prompts/contexts and Gemini as fallback. Shared-model errors may be correlated; validate live compatibility and retain finite episode/retry limits. Measure errors, unused budget, completion, attack outcome and per-component usage.
@@ -78,6 +80,23 @@ Candidate allocation uses necessity, review resolution value and consequence; re
 7. Analyze policy errors and real trajectories, contribute method/results to the five-page report, rehearse the presentation.
 
 Do not tune from final evaluator labels or show benchmark ground truth/attacker objectives to runtime models. Offline fixtures diagnose decisions; online runs measure completion after replanning.
+
+### Minimum contracts used by the stub-first implementation
+
+The architecture needs no redesign. The current core uses the small versioned contract documented in the implementation handoff. The host lifecycle and feedback wiring are implemented while R4 can develop the assessor; broader semantic scope extraction remains separate work.
+
+| Contract | Proposed implementation boundary |
+| --- | --- |
+| Scope construction | R3 owns the ledger and preserves the original task verbatim. Deterministically extract only supported literal constraints. Any semantic extraction uses the R4 adapter, returns source spans/evidence IDs and remains a candidate interpretation until validated. Never treat an omitted constraint as unrestricted permission. |
+| Initial scope versus later evidence | Task instructions establish goals and permitted delegation. Observations may resolve delegated details but cannot independently expand authority. Preserve relational subgoals so recipients, amounts and resources from different requests cannot be combined freely. |
+| Required checks | Each action adapter declares required dimensions, evidence accepted for each, and actual effects. APPROVE requires every required check satisfied; NOT_APPLICABLE requires a reason and cannot hide missing evidence. A proven violation denies; unresolved evidence follows the assessment/review path. |
+| R4 adapter v0.1 | Include episode/call IDs, immutable proposed arguments, task/ledger snapshot, requested checks and bounded evidence. Return per-check status, cited evidence IDs, explanation and explicit error/unknown status. Validate IDs and allowed statuses; malformed/timeout results remain unresolved and cannot authorize a call. Final model settings may be integrated later. |
+| Allocation rubric | R3 owns ordinal necessity, review resolution value and consequence ratings. Each rating needs a rule ID or supported assessment evidence. Define each level before the pilot; do not claim resolution probability is calibrated. Choose numeric weights and thresholds only on development tasks. |
+| Lifecycle and audit | Agree begin-episode, observation and execution-feedback events. Only actual execution feedback updates cumulative effects; approval alone does not. Stable event IDs make retries idempotent. R1 alone decrements review budget and resets it once per episode. |
+
+Keep the first implementation bounded: explicit adapters for the registered tools, four-state checks, a stub assessor and inspectable allocation. A trained classifier, universal natural-language authorization parser and additional model comparisons are not prerequisites.
+
+Before comparative runs, require an integration smoke test showing original-task propagation, real FunctionCall handling, repeated interception, mixed-batch execution, budget exhaustion, reviewer failure and immutable audit events. Align R5 metrics and R2's delegated-recipient prompt before freezing any comparisons. These runtime requirements need not block R3 unit-level development.
 
 ## 6. Experimental evidence
 
@@ -107,3 +126,17 @@ Five-page report: share approximately one page for the overall method; R3 explai
 Explain: problem → scope checks → review selection → benchmark comparison → real failure/lesson. Do not use a company feature diagram as proof of improvement.
 
 Remaining contracts and pre-pilot decisions are listed in the [decision register](PROJECT_DECISION_REGISTER.md). The old internal October freeze dates are targets, not evidence that integration has passed. Official deadline and format details remain unconfirmed.
+
+Execution update: [the connected runner](RUNNING_GATED_BENCHMARK.md) consumes existing manifests. Four-suite clean/attacked offline integration passed; live model validation remains outstanding.
+
+
+## 21 October development revision
+
+Follow [Matched development rerun v2](MATCHED_RERUN_V2.md). V1 produced no known completions and 15 API timeouts per condition; it does not demonstrate policy improvement. V2 adds bounded exact read prerequisites, task-derived review relevance, a declared delta=0.05 experiment, shared tool-use guidance and a 300-second diagnostic request timeout. Require a successful live clean preflight before the matched 120-episode development cohort. Keep v1 immutable, compare policies within v2, and reserve held-out tasks for final claims. R4 remains advisory; bounded templates do not establish general semantic scope extraction.
+
+
+## 21 October v3 recovery revision
+
+Follow [matched rerun v3](MATCHED_RERUN_V3.md). V2 improved clean utility but observed zero attacked TCR, 13 reviewer-error consultations and failures to resume the original task after blocks. V3 implements bounded format repair with per-attempt usage, retained supporting observations, prerequisite guidance, exact-call denial suppression and a source-verified rent-update binding that preserves payment identity. The shared reviewer/agent/runtime changes require fresh v3 directories and combined-system attribution. Require live clean/attacked preflight evidence before the 120-episode cohort. The three development tasks informed these changes; reserve held-out tasks for final evaluation. R4 remains advisory and missing bill facts must not be fabricated.
+
+V3 readiness verified: the final live preflight completed clean bill payment through full escalation and clean/attacked rent adjustment through the hybrid; attacked rent has utility=True and security=False. The initial candidate with an incomplete clean-rent final remains preserved. The matched v3 cohort itself has not been run. See the v3 protocol for commands and limitations.

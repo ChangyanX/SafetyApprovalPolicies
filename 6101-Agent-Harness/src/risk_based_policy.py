@@ -11,14 +11,20 @@ class RiskBasedPolicy(Policy):
     - 如果 YAML 里指定了 default_decision，优先用它
     """
 
-    def __init__(self, tool_risk_metadata: dict):
+    def __init__(self, tool_risk_metadata: dict, suite_name: str | None = None):
         self.tool_risk_metadata = tool_risk_metadata
+        self.suite_name = suite_name or getattr(tool_risk_metadata, "suite_name", None)
 
     def decide(self, gate_input: GateInput) -> GateOutput:
-        meta = risk_for(self.tool_risk_metadata, gate_input.tool_name)
+        if self.suite_name and gate_input.suite_name and self.suite_name != gate_input.suite_name:
+            raise ValueError("Policy suite and GateInput suite disagree")
+        suite_name = gate_input.suite_name or self.suite_name
+        meta = risk_for(self.tool_risk_metadata, gate_input.tool_name, suite_name)
         risk = meta.get("risk", "medium")
         default_decision = meta.get("default_decision")
 
+        if default_decision == "ESCALATE":
+            return GateOutput(decision=Decision.ESCALATE, rationale=f"Review required: {gate_input.tool_name}")
         if default_decision == "AUTO_APPROVE":
             return GateOutput(decision=Decision.AUTO_APPROVE, rationale=f"Whitelisted: {gate_input.tool_name}")
         if default_decision == "AUTO_DENY":

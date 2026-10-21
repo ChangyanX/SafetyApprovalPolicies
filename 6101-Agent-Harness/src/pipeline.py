@@ -1,47 +1,19 @@
-# src/pipeline.py
+"""Factory for the connected, repeated gated AgentDojo pipeline."""
 from openai import OpenAI
-from agentdojo.agent_pipeline import (
-    AgentPipeline,
-    SystemMessage,
-    InitQuery,
-    ToolsExecutor,
-    LocalLLM,
-)
-
-from .budget import BudgetResetElement
-from .gate import GateElement
+from .gated_runtime import GatedAgentPipeline
+from .ollama_agent import OllamaToolAgent
 
 
-def build_pipeline(model, policy, k, reviewer, tool_risk_metadata, system_prompt="", client=None):
-    """
-    组装完整 pipeline:
-    SystemMessage → InitQuery → BudgetReset → LLM → Gate → ToolsExecutor
-
-    Args:
-        model: 模型名，如 "qwen3:14b"
-        policy: Policy 实例
-        k: 预算
-        reviewer: Reviewer 实例
-        tool_risk_metadata: 工具风险元数据 dict
-        system_prompt: 系统提示词
-        client: OpenAI 客户端（Ollama 用 OpenAI(base_url="http://localhost:11434/v1")）
-    """
-    if client is None:
-        client = OpenAI(base_url="http://localhost:11434/v1", api_key="ollama")
-
-    llm = LocalLLM(client=client, model=model)
-
-    elements = [
-        SystemMessage(system_message=system_prompt),
-        InitQuery(),
-        BudgetResetElement(initial_k=k),
-        llm,
-        GateElement(
-            policy=policy,
-            reviewer=reviewer,
-            k=k,
-            tool_risk_metadata=tool_risk_metadata,
-        ),
-        ToolsExecutor(),
-    ]
-    return AgentPipeline(elements=elements)
+def build_pipeline(model, policy, k, reviewer, tool_risk_metadata, system_prompt='',
+                   client=None, suite_name=None, *, episode_id=None, agent=None,
+                   max_turns=20, max_tool_calls=80, on_event=None, on_agent_usage=None,
+                   max_tokens=4096, attempts=1, seed=0):
+    if agent is None:
+        client = client or OpenAI(base_url='http://localhost:11434/v1', api_key='ollama',
+                                  timeout=120, max_retries=0)
+        agent = OllamaToolAgent(client, model, max_tokens=max_tokens, attempts=attempts,
+                               seed=seed, on_usage=on_agent_usage)
+    return GatedAgentPipeline(agent, policy, reviewer, tool_risk_metadata,
+        suite_name=suite_name or getattr(tool_risk_metadata,'suite_name',None), k=k,
+        episode_id=episode_id, system_prompt=system_prompt, max_turns=max_turns,
+        max_tool_calls=max_tool_calls, on_event=on_event)

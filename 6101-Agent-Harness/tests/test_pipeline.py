@@ -30,7 +30,8 @@ def test_build_pipeline_returns_agent_pipeline():
         client=mock_client,
     )
     assert pipeline is not None
-    assert len(pipeline.elements) == 6
+    assert pipeline.max_turns == 20
+    assert pipeline.initial_k == 5
 
 
 def test_build_pipeline_element_order():
@@ -46,12 +47,7 @@ def test_build_pipeline_element_order():
         tool_risk_metadata=md,
         client=mock_client,
     )
-    names = [type(e).__name__ for e in pipeline.elements]
-    assert names == [
-        "SystemMessage",
-        "InitQuery",
-        "BudgetResetElement",
-        "LocalLLM",
-        "GateElement",
-        "ToolsExecutor",
-    ]
+    assert type(pipeline).__name__ == "GatedAgentPipeline"
+    assert type(pipeline.agent).__name__ == "OllamaToolAgent"
+    assert pipeline.policy is policy
+    assert pipeline.reviewer is reviewer
