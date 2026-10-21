@@ -226,6 +226,9 @@ def main(argv=None):
     config=dict(model=args.model,base_url=args.base_url,timeout=args.timeout,attempts=args.attempts,
         max_turns=args.max_turns,max_tool_calls=args.max_tool_calls,max_tokens=args.max_tokens,
         seed=args.seed,policy_options=policy_options,model_weights_digest=None,
+        agent_reasoning_effort='none',
+        reviewer_protocol=dict(max_format_repairs=1, max_tokens=512, no_think=True,
+            repair_budget='one consultation; all HTTP attempts logged'),
         benchmark_package=version('agentdojo'),source_fingerprints=source_fingerprints(),
         episode_ids=[r['episode_id'] for r in rows],mode='live')
     root=args.output_dir

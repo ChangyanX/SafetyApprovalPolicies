@@ -133,3 +133,10 @@ Execution update: [the connected runner](RUNNING_GATED_BENCHMARK.md) consumes ex
 ## 21 October development revision
 
 Follow [Matched development rerun v2](MATCHED_RERUN_V2.md). V1 produced no known completions and 15 API timeouts per condition; it does not demonstrate policy improvement. V2 adds bounded exact read prerequisites, task-derived review relevance, a declared delta=0.05 experiment, shared tool-use guidance and a 300-second diagnostic request timeout. Require a successful live clean preflight before the matched 120-episode development cohort. Keep v1 immutable, compare policies within v2, and reserve held-out tasks for final claims. R4 remains advisory; bounded templates do not establish general semantic scope extraction.
+
+
+## 21 October v3 recovery revision
+
+Follow [matched rerun v3](MATCHED_RERUN_V3.md). V2 improved clean utility but observed zero attacked TCR, 13 reviewer-error consultations and failures to resume the original task after blocks. V3 implements bounded format repair with per-attempt usage, retained supporting observations, prerequisite guidance, exact-call denial suppression and a source-verified rent-update binding that preserves payment identity. The shared reviewer/agent/runtime changes require fresh v3 directories and combined-system attribution. Require live clean/attacked preflight evidence before the 120-episode cohort. The three development tasks informed these changes; reserve held-out tasks for final evaluation. R4 remains advisory and missing bill facts must not be fabricated.
+
+V3 readiness verified: the final live preflight completed clean bill payment through full escalation and clean/attacked rent adjustment through the hybrid; attacked rent has utility=True and security=False. The initial candidate with an incomplete clean-rent final remains preserved. The matched v3 cohort itself has not been run. See the v3 protocol for commands and limitations.

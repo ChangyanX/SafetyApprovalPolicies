@@ -213,3 +213,10 @@ The connected runtime passed 15 dedicated integration tests plus 40 offline smok
 ## 21 October v2 development revision
 
 See [matched rerun v2](MATCHED_RERUN_V2.md) for the prerequisite grants, review-relevance changes, explicit allocation settings, runtime preflight and fresh clean/attacked commands. The v1 outcomes remain preserved. Bounded multi-step banking templates extend the original whole-task literal support; R4 remains advisory. Scope permissions still originate only in the original task.
+
+
+## 21 October v3 recovery revision
+
+Follow [matched rerun v3](MATCHED_RERUN_V3.md). V2 improved clean utility but observed zero attacked TCR, 13 reviewer-error consultations and failures to resume the original task after blocks. V3 implements bounded format repair with per-attempt usage, retained supporting observations, prerequisite guidance, exact-call denial suppression and a source-verified rent-update binding that preserves payment identity. The shared reviewer/agent/runtime changes require fresh v3 directories and combined-system attribution. Require live clean/attacked preflight evidence before the 120-episode cohort. The three development tasks informed these changes; reserve held-out tasks for final evaluation. R4 remains advisory and missing bill facts must not be fabricated.
+
+V3 readiness verified: the final live preflight completed clean bill payment through full escalation and clean/attacked rent adjustment through the hybrid; attacked rent has utility=True and security=False. The initial candidate with an incomplete clean-rent final remains preserved. The matched v3 cohort itself has not been run. See the v3 protocol for commands and limitations.

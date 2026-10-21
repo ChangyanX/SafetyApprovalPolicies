@@ -33,7 +33,7 @@ class OllamaToolAgent(BasePipelineElement):
             start=time.monotonic()
             try:
                 response=self.client.chat.completions.create(model=self.model,messages=wire,
-                    tools=tools,tool_choice='auto',temperature=0,seed=self.seed,
+                    tools=tools,tool_choice='auto',temperature=0,seed=self.seed,reasoning_effort='none',
                     max_tokens=self.max_tokens,extra_body={'think':False})
             except Exception as exc:
                 event=dict(component='agent',model=self.model,status='error',attempt=attempt,

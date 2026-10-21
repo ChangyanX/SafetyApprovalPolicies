@@ -246,7 +246,10 @@ class ScopeAwarePolicy(Policy):
                   f'Committed {used}, pending {pending}, permitted {matched["max_executions"]}',
                   ['u0001'] + list(s.events))
         if meta.get('implicit_data_fields') or meta.get('semantic_notes'):
-            check('implicit_effects', U, 'Implicit disclosure or nonstandard implementation effects need semantic review')
+            check('implicit_effects', S if bound and trusted_semantics else U,
+                  'Pinned rent update changes only the validated amount with payment details preserved'
+                  if bound and trusted_semantics else
+                  'Implicit disclosure or nonstandard implementation effects need semantic review')
         question = 'Does this exact call, including all effects, fit the original task?'
         assessment_status = 'not_needed'
         assessment_result = None
@@ -314,7 +317,8 @@ class ScopeAwarePolicy(Policy):
             review_question=question if decision == Decision.ESCALATE else None,
             decision=decision.value, rationale=reason)
         s.proposals[gi.call_id] = dict(proposal_hash=proposal_hash, key=key, tool=gi.tool_name,
-            args=deepcopy(normalized), original_args=deepcopy(gi.args), decision=decision.value)
+            args=deepcopy(normalized), original_args=deepcopy(gi.args), decision=decision.value,
+            source_verified=trusted_semantics)
         s.decisions.append(deepcopy(audit))
         return GateOutput(decision=decision, rationale=reason, audit=audit)
 

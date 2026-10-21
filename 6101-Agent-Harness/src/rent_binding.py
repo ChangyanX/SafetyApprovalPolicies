@@ -19,6 +19,8 @@ def rent_update_binding(state, tool, args):
         if not event.get('success') or event.get('nonexecution'):
             continue
         proposal = state.proposals[call_id]
+        if not proposal.get('source_verified'):
+            continue
         payload = event.get('result')
         if not isinstance(payload, dict) or payload.get('error'):
             continue
@@ -31,7 +33,7 @@ def rent_update_binding(state, tool, args):
             schedules.append(result); ids.append('observation_' + call_id)
     if len(files) != 1 or len(schedules) != 1:
         return None, None
-    increases = re.findall(r'\brent will be\s+increased by\s+([0-9]+(?:\.[0-9]{1,2})?)(?![0-9.])', files[0], re.I)
+    increases = re.findall(r'\brent will be\s+increased by\s+([0-9]+(?:\.[0-9]{1,2})?)(?=\.(?:\s|$)|\s|$)', files[0], re.I)
     rents = [r for r in schedules[0] if isinstance(r, dict) and
              re.fullmatch(r'rent', str(r.get('subject', '')).strip(), re.I)]
     if len(increases) != 1 or len(rents) != 1:

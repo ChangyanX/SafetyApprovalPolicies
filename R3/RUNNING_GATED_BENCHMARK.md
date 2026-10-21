@@ -4,7 +4,7 @@ The execution connection is now implemented. `src.experiment_runner` remains the
 
 The connected factory is in [pipeline.py](../6101-Agent-Harness/src/pipeline.py), the repeated gate/executor in [gated_runtime.py](../6101-Agent-Harness/src/gated_runtime.py), and the executable driver in [run_experiments.py](../6101-Agent-Harness/src/run_experiments.py). The older standalone `GateElement` is a legacy fixture, not the live execution path.
 
-**Latest rerun protocol:** follow [Matched development rerun v2](MATCHED_RERUN_V2.md) after the v1 zero-completion/timeouts. It adds a mandatory live preflight, bounded prerequisite support, explicit lower scarcity penalty and fresh matched output directories. The older commands below remain the v1 protocol; do not use them to overwrite completed runs.
+**Latest rerun protocol:** follow [Matched development rerun v3](MATCHED_RERUN_V3.md) for reviewer format repair, bounded rent-update validation and recovery after a blocked attack. It preserves the same matched cohort and uses fresh v3 directories. [V2](MATCHED_RERUN_V2.md) remains the historical protocol; never overwrite completed runs.
 
 ## What is connected
 
