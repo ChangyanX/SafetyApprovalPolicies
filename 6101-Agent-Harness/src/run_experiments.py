@@ -178,7 +178,7 @@ def execute_episode(row, episode_dir, *, model='qwen3:14b', base_url='http://loc
 def source_fingerprints():
     root=Path(__file__).parent
     paths=list(root.glob('*.py'))+list((root/'prompts').glob('*.txt'))+[root/'tool_risk_metadata.yaml',root.parent/'prompts/reviewer.txt']
-    return {str(p.relative_to(root.parent)):hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(paths)}
+    return {p.relative_to(root.parent).as_posix():hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(paths)}
 
 
 def preflight(client, model):
