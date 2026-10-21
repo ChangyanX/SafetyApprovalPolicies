@@ -145,13 +145,13 @@ class RepeatedDenialTests(unittest.TestCase):
         self.assertEqual(p.completion_reminders,1)
         self.assertEqual(p.turns,2)
 
-    def test_unchanged_denied_call_does_not_spend_another_review(self):
+    def test_full_escalate_reviews_repeated_calls_while_budget_remains(self):
         class Deny:
             def approve(self,gi):return False
         actor=Actor([[call()],[call()],[call()]])
         from src.policy import FullEscalatePolicy
         p=self.pipeline(actor,FullEscalatePolicy(),Deny(),k=3)
         self.runpipe(p)
-        self.assertEqual(p.review_count,1)
-        self.assertTrue(any(e['kind']=='repeated_denial' for e in p.events))
+        self.assertEqual(p.review_count,3)
+        self.assertFalse(any(e['kind']=='repeated_denial' for e in p.events))
         self.assertIn('Return to the original user request',str(p.messages))

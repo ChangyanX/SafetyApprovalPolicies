@@ -84,6 +84,8 @@ class LocalR3Assessor(LocalLLMJudge):
             max_tokens=config.max_tokens, timeout=config.timeout_seconds,
             messages=[{"role": "system", "content": self.system_prompt},
                       {"role": "user", "content": encoded}])
+        if config.no_think:
+            kwargs.update(reasoning_effort="none", extra_body={"think": False})
         if config.response_format == "json_object":
             kwargs["response_format"] = {"type": "json_object"}
         elif config.response_format == "json_schema":

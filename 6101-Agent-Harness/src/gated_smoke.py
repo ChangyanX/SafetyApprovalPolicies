@@ -33,10 +33,11 @@ class ScriptedReviewer:
 def main(argv=None):
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output-dir',type=Path,required=True)
+    parser.add_argument('--suite', default='banking', choices=tuple(get_suites('v1.2.2')))
     args=parser.parse_args(argv)
     args.output_dir.mkdir(parents=True,exist_ok=False)
     (args.output_dir/'episodes').mkdir()
-    rows=build_experiment_plan(policies=['full_approve','full_escalate','risk_based','hybrid_stub_fixed','hybrid_stub'],k_values=[1])
+    rows=build_experiment_plan(suite_name=args.suite,policies=['full_approve','full_escalate','risk_based','hybrid_stub_fixed','hybrid_stub'],k_values=[1])
     first_injection={name:next(iter(suite.injection_tasks)) for name,suite in get_suites('v1.2.2').items()}
     rows=[r for r in rows if r['user_task_id']=='user_task_0' and (r['condition']=='clean' or r['injection_task_id']==first_injection[r['suite']])]
     save_plan_csv(rows,args.output_dir/'manifest.csv')
@@ -46,7 +47,7 @@ def main(argv=None):
         append_json(args.output_dir/'results.jsonl',result)
         if result['status']!='ok':raise RuntimeError(f'Offline integration failed: {result["error"]}')
         if result['review_count']>1:raise AssertionError('Review budget exceeded')
-    print(f'PASS: {len(rows)} offline integration episodes across all suites and five policies.')
+    print(f'PASS: {len(rows)} offline integration episodes in {args.suite} across five policies.')
     print('Real environments, direct attack setup and official evaluation exercised with scripted actors; not model benchmark evidence.')
 
 

@@ -163,6 +163,8 @@ class LLMReviewer(Reviewer):
         self.usage_callback_errors = 0
         self.last_usage = None
         self.log = []                       # one record per review, for failure analysis
+        self.requests = []                  # exact wire request per HTTP attempt
+        self._request_identity = {}
         self._last = None                   # (GateInput, Verdict): approve()/deny() share a call
 
     # ---- setup check -------------------------------------------------------------
@@ -254,11 +256,11 @@ class LLMReviewer(Reviewer):
         content = prompt + ("\n/no_think" if self.no_think else "")
         t0 = time.time()
         options = {"reasoning_effort": "none"} if self.no_think else {}
-        resp = self.client.chat.completions.create(
-            model=self.model,
-            messages=[{"role": "user", "content": content}],
+        request = dict(model=self.model, messages=[{"role": "user", "content": content}],
             temperature=0.0, seed=0, max_tokens=self.max_tokens,
             response_format={"type": "json_object"}, **options)
+        self.requests.append(dict(self._request_identity, request=request))
+        resp = self.client.chat.completions.create(**request)
         latency = time.time() - t0
         text = resp.choices[0].message.content or ""
         u = getattr(resp, "usage", None)
@@ -306,6 +308,7 @@ class LLMReviewer(Reviewer):
         # (even with identical content) is a new consultation, matching the gate's budget.
         if self._last is not None and self._last[0] is gi:
             return self._last[1]
+        self._request_identity = dict(episode_id=gi.episode_id, call_id=gi.call_id)
         prompt = self.render(gi)
         self.firewall_hits += firewall_check(prompt)
         self.consultations += 1
@@ -345,7 +348,8 @@ class LLMReviewer(Reviewer):
         self.last_usage = usage
         self._emit_usage(usage)
         self._last = (gi, v)
-        self.log.append({"tool": gi.tool_name, "decision": v.decision, "reason": v.reason,
+        self.log.append({"episode_id": gi.episode_id, "call_id": gi.call_id,
+                         "request_prompt": prompt, "arguments": gi.args, "tool": gi.tool_name, "decision": v.decision, "reason": v.reason,
                          "error": v.error, "usage": usage, "format_errors": format_errors,
                          "format_repairs": max(0, len(format_errors) - int(v.error))})
         return v

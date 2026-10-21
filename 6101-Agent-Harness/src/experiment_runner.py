@@ -100,7 +100,7 @@ def save_plan_csv(plan, output_path='runs/r5_multisuite_experiment_plan.csv', *,
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--benchmark-version', default='v1.2.2')
-    parser.add_argument('--suite', action='append', dest='suites', help='Repeat to select suites; default: all')
+    parser.add_argument('--suite', action='append', dest='suites', help='Repeat to select suites; default: banking')
     parser.add_argument('--policy', action='append', dest='policies', choices=POLICY_LABELS)
     parser.add_argument('--k', action='append', dest='k_values', type=int)
     parser.add_argument('--attack', action='append', dest='attacks')
@@ -108,15 +108,27 @@ def main(argv=None):
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument('--clean-only', action='store_true')
     mode.add_argument('--attacked-only', action='store_true')
-    parser.add_argument('--output', type=Path, default=Path('runs/r5_multisuite_experiment_plan.csv'))
+    parser.add_argument('--output', type=Path, default=Path('runs/banking_experiment_plan.csv'))
     parser.add_argument('--overwrite', action='store_true')
+    parser.add_argument('--task', action='append', dest='tasks', help='Repeat to freeze a user-task cohort')
+    parser.add_argument('--injection-task', action='append', dest='injections', help='Freeze attack objectives; clean rows retained')
     args = parser.parse_args(argv)
     try:
-        plan = build_experiment_plan(args.benchmark_version, policies=args.policies,
-                                    k_values=args.k_values, suite_names=args.suites,
+        plan = build_experiment_plan(args.benchmark_version, policies=args.policies or ['full_approve', 'full_escalate', 'hybrid_llm', 'hybrid_llm_fixed'],
+                                    k_values=args.k_values, suite_names=args.suites or ['banking'],
                                     attack_methods=args.attacks, repeats=args.repeats,
                                     include_clean=not args.attacked_only,
                                     include_attacked=not args.clean_only)
+        if args.tasks:
+            unknown = set(args.tasks) - {r['user_task_id'] for r in plan}
+            if unknown:
+                raise ValueError(f'Unknown tasks: {sorted(unknown)}')
+            plan = [r for r in plan if r['user_task_id'] in args.tasks]
+        if args.injections:
+            unknown = set(args.injections) - {r['injection_task_id'] for r in plan}
+            if unknown:
+                raise ValueError(f'Unknown injection tasks: {sorted(unknown)}')
+            plan = [r for r in plan if r['condition'] == 'clean' or r['injection_task_id'] in args.injections]
         path = save_plan_csv(plan, args.output, overwrite=args.overwrite)
     except (ValueError, KeyError, OSError) as error:
         parser.error(str(error))

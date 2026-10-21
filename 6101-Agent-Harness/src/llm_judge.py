@@ -22,6 +22,7 @@ class JudgeConfig(StrictModel):
     max_input_chars: int = Field(default=24000, ge=1000)
     max_history_messages: int = Field(default=512, ge=0)
     response_format: Literal["json_object", "json_schema", "none"] = "json_object"
+    no_think: bool = False
 
     @classmethod
     def from_env(cls) -> "JudgeConfig":
@@ -97,6 +98,8 @@ class LocalLLMJudge:
                       max_tokens=config.max_tokens, timeout=config.timeout_seconds,
                       messages=[{"role": "system", "content": self.system_prompt},
                                 {"role": "user", "content": encoded}])
+        if config.no_think:
+            kwargs.update(reasoning_effort="none", extra_body={"think": False})
         if config.response_format == "json_object":
             kwargs["response_format"] = {"type": "json_object"}
         elif config.response_format == "json_schema":

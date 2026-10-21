@@ -36,7 +36,7 @@ POLICIES = {
 }
 
 DEFAULT_POLICY_LABELS = ("full_approve", "full_escalate", "risk_based")
-POLICY_LABELS = DEFAULT_POLICY_LABELS + ("hybrid_stub", "hybrid_stub_fixed")
+POLICY_LABELS = DEFAULT_POLICY_LABELS + ("hybrid_stub", "hybrid_stub_fixed", "hybrid_llm", "hybrid_llm_fixed")
 
 
 def make_policy(label: str, tool_risk_metadata=None, suite_name=None, *, policy_options=None) -> Policy:
@@ -44,11 +44,15 @@ def make_policy(label: str, tool_risk_metadata=None, suite_name=None, *, policy_
 
     "risk_based" needs the loaded tool risk metadata (see src/tool_risk.py).
     """
-    if label in ("hybrid_stub", "hybrid_stub_fixed"):
+    if label in ("hybrid_stub", "hybrid_stub_fixed", "hybrid_llm", "hybrid_llm_fixed"):
         from .scope_policy import ScopeAwarePolicy
-        return ScopeAwarePolicy(metadata=tool_risk_metadata,
+        if label.startswith("hybrid_llm") and not (policy_options or {}).get("assessor"):
+            raise ValueError("hybrid_llm requires an explicit live assessor")
+        policy = ScopeAwarePolicy(metadata=tool_risk_metadata,
                                 allocation="fixed" if label.endswith("_fixed") else "dynamic",
                                 **(policy_options or {}))
+        policy.name = label
+        return policy
     if label in POLICIES:
         return POLICIES[label]()
     if label == "risk_based":

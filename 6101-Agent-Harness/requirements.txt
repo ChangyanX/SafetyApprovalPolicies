@@ -5,3 +5,6 @@ pydantic>=2.0.0
 PyYAML>=6.0
 pytest>=8.0
 tenacity>=8.2
+
+# Required for evaluation figures
+matplotlib>=3.8

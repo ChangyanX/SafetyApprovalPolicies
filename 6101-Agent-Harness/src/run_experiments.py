@@ -23,6 +23,8 @@ from .gated_runtime import jsonable
 from .pipeline import build_pipeline
 from .policy import make_policy, POLICY_LABELS
 from .reviewer import LLMReviewer
+from .r4_assessor import LocalR3Assessor
+from .llm_judge import JudgeConfig
 from .tool_risk import load_tool_risk_metadata
 
 IDENTITY = ('episode_id','benchmark_version','suite','user_task_id','condition','attack',
@@ -81,20 +83,43 @@ def execute_episode(row, episode_dir, *, model='qwen3:14b', base_url='http://loc
     result={key:row[key] for key in IDENTITY}
     result.update(status='error',utility=None,security=None,review_count=0,executed_calls=[],
                   mode='offline_test' if agent is not None else 'live',error=None)
-    started=time.monotonic();pipeline=None;reviewer_object=None;usage=[]
+    started=time.monotonic();pipeline=None;reviewer_object=None;usage=[];instrumentation_errors=[]
     def on_usage(component, data):
         event=dict(jsonable(data),component=component,episode_id=row['episode_id'],provider='ollama',
                    local=True,cost_usd=0.0)
         event.setdefault('record_type','api_attempt')
-        usage.append(event);append_json(episode_dir/'usage.jsonl',event)
+        usage.append(event)
+        try:
+            append_json(episode_dir/'usage.jsonl',event)
+        except Exception as exc:
+            instrumentation_errors.append(type(exc).__name__)
+            raise
     def on_event(data):append_json(episode_dir/'audit.jsonl',data)
     try:
         suite=get_suite(row['benchmark_version'],row['suite'])
         task=suite.get_user_task_by_id(row['user_task_id'])
         metadata=load_tool_risk_metadata(Path(__file__).with_name('tool_risk_metadata.yaml'))
-        policy=make_policy(row['policy'],metadata,suite_name=row['suite'],policy_options=policy_options)
         client=client or (None if agent is not None else OpenAI(base_url=base_url,api_key='ollama',
                                                 timeout=timeout,max_retries=0))
+        options = dict(policy_options or {})
+        if row['policy'].startswith('hybrid_llm'):
+            if client is None:
+                raise ValueError('hybrid_llm requires a model client')
+            def assessor_trace(trace):
+                data = trace.model_dump(mode='json')
+                try:
+                    append_json(episode_dir/'assessor.jsonl', data)
+                except Exception as exc:
+                    instrumentation_errors.append(type(exc).__name__)
+                    raise
+                if trace.provider_called:
+                    on_usage('policy', dict(model=trace.model, status=trace.status,
+                        input_tokens=trace.prompt_tokens, output_tokens=trace.completion_tokens,
+                        latency_s=trace.latency_ms/1000, call_id=trace.call_id,
+                        error_code=trace.error_code))
+            options['assessor'] = LocalR3Assessor(JudgeConfig(model=model, base_url=base_url,
+                timeout_seconds=float(timeout), max_tokens=1024, no_think=True), client=client, on_trace=assessor_trace)
+        policy=make_policy(row['policy'],metadata,suite_name=row['suite'],policy_options=options)
         reviewer_object=reviewer if reviewer is not None else LLMReviewer(model=model,base_url=base_url,
             client=client,max_attempts=attempts,
             on_usage=lambda data:on_usage('reviewer',dict(data,record_type='consultation_summary')),
@@ -116,6 +141,8 @@ def execute_episode(row, episode_dir, *, model='qwen3:14b', base_url='http://loc
         write_json(episode_dir/'attack_setup.json',dict(condition=row['condition'],
             attack=row['attack'],injection_task_id=row['injection_task_id'],injections=injections))
         utility,security=suite.run_task_with_pipeline(pipeline,task,injection_task,injections)
+        if type(utility) is not bool or type(security) is not bool:
+            raise ValueError('Official evaluators must return known boolean outcomes')
         result.update(status='ok',utility=bool(utility),security=bool(security),error=None)
     except KeyboardInterrupt:
         result.update(status='error',error='KeyboardInterrupt: interrupted by user')
@@ -131,8 +158,14 @@ def execute_episode(row, episode_dir, *, model='qwen3:14b', base_url='http://loc
                 evaluation_messages=jsonable(pipeline.evaluation_messages())))
             if hasattr(pipeline.policy,'snapshot'):
                 write_json(episode_dir/'scope_state.json',pipeline.policy.snapshot())
+        if instrumentation_errors:
+            result.update(status='error', error='Model usage or assessor audit callback failed', utility=None, security=None)
+        if reviewer_object is not None and getattr(reviewer_object, 'usage_callback_errors', 0):
+            result.update(status='error', error='Reviewer usage audit callback failed', utility=None, security=None)
         if reviewer_object is not None and hasattr(reviewer_object,'log'):
             write_json(episode_dir/'reviewer.json',jsonable(reviewer_object.log))
+        if reviewer_object is not None and hasattr(reviewer_object,'requests'):
+            write_json(episode_dir/'reviewer_requests.json',jsonable(reviewer_object.requests))
         result.update(duration_s=time.monotonic()-started,usage=usage,
             audit_path=str(episode_dir/'audit.jsonl'),trajectory_path=str(episode_dir/'trajectory.json'))
         write_json(episode_dir/'result.json',result)
@@ -141,7 +174,7 @@ def execute_episode(row, episode_dir, *, model='qwen3:14b', base_url='http://loc
 
 def source_fingerprints():
     root=Path(__file__).parent
-    paths=list(root.glob('*.py'))+[root/'tool_risk_metadata.yaml',root.parent/'prompts/reviewer.txt']
+    paths=list(root.glob('*.py'))+list((root/'prompts').glob('*.txt'))+[root/'tool_risk_metadata.yaml',root.parent/'prompts/reviewer.txt']
     return {str(p.relative_to(root.parent)):hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(paths)}
 
 
@@ -178,7 +211,7 @@ def main(argv=None):
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--manifest',type=Path)
     parser.add_argument('--output-dir',type=Path)
-    parser.add_argument('--suite',action='append')
+    parser.add_argument('--suite',action='append',help='Default selection: banking')
     parser.add_argument('--task',action='append')
     parser.add_argument('--policy',action='append',choices=POLICY_LABELS)
     parser.add_argument('--k',action='append',type=int)
@@ -187,6 +220,7 @@ def main(argv=None):
     parser.add_argument('--limit',type=int,default=10,help='Selected episode count; default 10; --all removes selection limit')
     parser.add_argument('--all',action='store_true',help='Run every selected row')
     parser.add_argument('--resume',action='store_true')
+    parser.add_argument('--validate-only',action='store_true',help='Validate selected manifest offline; no files or model requests')
     parser.add_argument('--check',action='store_true',help='Check model availability only; no files or episodes')
     parser.add_argument('--model',default='qwen3:14b')
     parser.add_argument('--base-url',default='http://localhost:11434/v1')
@@ -209,7 +243,7 @@ def main(argv=None):
     if not args.check:
         if args.manifest is None or args.output_dir is None:parser.error('--manifest and --output-dir are required')
         with args.manifest.open(encoding='utf-8-sig',newline='') as file:rows=list(csv.DictReader(file))
-        rows=[r for r in rows if (not args.suite or r['suite'] in args.suite)
+        rows=[r for r in rows if (r['suite'] in (args.suite or ['banking']))
               and (not args.task or r['user_task_id'] in args.task)
               and (not args.policy or r['policy'] in args.policy)
               and (not args.k or int(r['k']) in args.k)
@@ -218,6 +252,9 @@ def main(argv=None):
         if not args.all:rows=rows[:args.limit]
         try:validate_manifest(rows)
         except (ValueError,KeyError) as exc:parser.error(str(exc))
+    if args.validate_only:
+        if args.check:parser.error('--validate-only requires a manifest, not --check')
+        print(f'Validated {len(rows)} selected manifest rows; no model requests.');return 0
     client=OpenAI(base_url=args.base_url,api_key='ollama',timeout=args.timeout,max_retries=0)
     try:available=preflight(client,args.model)
     except RuntimeError as exc:parser.exit(2,str(exc)+'\n')
@@ -256,6 +293,7 @@ def main(argv=None):
                 file.write(json.dumps(record,allow_nan=False)+'\n');aggregated.add(row['episode_id'])
         file.flush();os.fsync(file.fileno())
     temp.replace(aggregate)
+    error_count = 0
     for index,row in enumerate(rows,1):
         folder=root/'episodes'/row['episode_id']
         if (folder/'result.json').exists():
@@ -268,8 +306,10 @@ def main(argv=None):
                 max_tool_calls=args.max_tool_calls,max_tokens=args.max_tokens,seed=args.seed,policy_options=policy_options)
         if row['episode_id'] not in aggregated:
             append_json(aggregate,result);aggregated.add(row['episode_id'])
+        error_count += result['status'] != 'ok'
         print(f'[{index}/{len(rows)}] {row["suite"]} {row["user_task_id"]} {row["condition"]} {row["policy"]} k={row["k"]}: {result["status"]} utility={result["utility"]} security={result["security"]} reviews={result["review_count"]}',flush=True)
-    print(f'Completed selection. Compare {root/"manifest.csv"} with {root/"results.jsonl"}.')
+    print(f'Completed selection with {error_count} errors. Compare {root/"manifest.csv"} with {root/"results.jsonl"}.')
+    return 2 if error_count else 0
 
 
-if __name__=='__main__':main()
+if __name__=='__main__':raise SystemExit(main())

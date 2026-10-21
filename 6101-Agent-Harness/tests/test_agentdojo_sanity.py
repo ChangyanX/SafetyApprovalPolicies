@@ -1,8 +1,6 @@
 # tests/test_agentdojo_sanity.py
-import sys
-sys.path.insert(0, r"E:\6101\6101-agent-harness")
-
-from agentdojo.agent_pipeline import AgentPipeline
+from agentdojo.agent_pipeline import BasePipelineElement
+from src.gated_runtime import GatedAgentPipeline
 from src.pipeline import build_pipeline
 from src.risk_based_policy import RiskBasedPolicy
 from src.tool_risk import load_tool_risk_metadata
@@ -26,4 +24,5 @@ def test_agentdojo_pipeline_constructs():
         tool_risk_metadata=md,
     )
 
-    assert isinstance(pipeline, AgentPipeline)
+    assert isinstance(pipeline, BasePipelineElement)
+    assert isinstance(pipeline, GatedAgentPipeline)

@@ -62,6 +62,8 @@ def compare(manifest, results):
             planned_lower_bound=known/n,planned_upper_bound=(known+unknown)/n,
             utility_valid_only=sum(r['utility'] for r in valid)/len(valid) if valid else None,
             attack_success_valid_only=sum(r['security'] for r in valid)/len(valid) if valid and condition=='attacked' else None,
+            hitl_utility_successful_cohort_size=sum(r['utility'] for r in valid),
+            hitl_utility_successful_cohort_total=sum(r['review_count'] for r in valid if r['utility']),
             hitl_successful_cohort_size=sum(target),
             hitl_successful_cohort_total=sum(r['review_count'] for r,passed in zip(valid,target) if passed),
             reviews_observed=sum(r['review_count'] for _,r in cells if r),

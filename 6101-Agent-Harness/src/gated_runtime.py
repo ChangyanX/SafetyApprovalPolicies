@@ -148,7 +148,7 @@ class GatedAgentPipeline(BasePipelineElement):
         denial_key = None
         if not operational_error:
             denial_key = json.dumps([call.function, args, len(self.executed_calls)], sort_keys=True)
-            if denial_key in self.denied_calls:
+            if isinstance(self.policy, ScopeAwarePolicy) and denial_key in self.denied_calls:
                 operational_error = 'Repeated blocked call with no new execution evidence: ' + self.denied_calls[denial_key]
                 self.emit('repeated_denial', call_id=call_id, tool=call.function)
         if not operational_error:
