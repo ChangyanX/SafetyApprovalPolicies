@@ -40,10 +40,10 @@ Improvement is a hypothesis. Higher benchmark TCR at matched k supports the whol
 | Existing default | Evidence / implication |
 | --- | --- |
 | Four suites, 97 user tasks and 74 suite-tool registrations | Suite-aware metadata covers the registered inventory; semantic check tags still require executable scope rules |
-| k in {0,1,3,5} | Planner default; use for development before freezing final range |
+| $k\in\{0,1,3,5,7,9\}$ | Project-wide grid confirmed by the user on 21 October 2026; applies to development and full sweeps |
 | qwen3:14b via Ollama | Team agent factory/reviewer default; live compatibility not established by this review |
 | Gemini adapter at repository root | Separate stock-pipeline runner; defaults to workspace and does not activate team gate |
-| 12,552 default pending rows | Multi-suite planner includes clean/attacked conditions, attack method, repeat and unique episode IDs. Legacy banking CSV preserved. Explicit hybrid_stub labels are registered; defaults remain the three reference policies. |
+| 3,840 default banking pending rows | Banking CLI defaults to four policies, six budgets, clean plus nine direct attack objectives, and one repeat; manifests carry unique episode IDs. The general library all-suite/three-reference-policy default has 18,828 rows. Legacy pending CSV uses the same six budgets but keeps its old schema. |
 | Gate policy output | Optional audit payload now carries checks, assessor status/result, priority and proposal hash for the R3 core; legacy policies remain compatible |
 | R5 logger/metrics/cost modules | Standalone implementation; integration and scorer mapping pending |
 

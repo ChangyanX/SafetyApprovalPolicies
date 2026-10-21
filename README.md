@@ -1,5 +1,7 @@
 # Safety Approval Policies for Agent Harnesses
 
+Review budget grid: $k\in\{0,1,3,5,7,9\}$.
+
 Current scope: **banking only**, per the user's direction on 21 October 2026. AgentDojo is pinned to `0.1.35`, benchmark `v1.2.2`. Local `qwen3:14b` is selected for agent execution, advisory policy assessment and simulated review, with separate prompts/contexts.
 
 Start with the [banking evaluation and submission guide](docs/BANKING_EVALUATION_GUIDE.md). It contains the current Mermaid policy diagrams and justification, LaTeX equations, environment setup, pilot/full-run/resume/analysis commands, required report evidence and presentation checklist. The [readiness audit](docs/BANKING_READINESS_AUDIT.md) records integration fixes, validation and remaining limitations.

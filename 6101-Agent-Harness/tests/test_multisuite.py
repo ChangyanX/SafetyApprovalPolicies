@@ -69,9 +69,10 @@ class MetadataTests(unittest.TestCase):
 class PlannerTests(unittest.TestCase):
     def test_all_suites_and_condition_identities(self):
         plan = build_experiment_plan()
-        self.assertEqual(len(plan), 12552)
+        self.assertEqual(len(plan), 18828)
+        self.assertEqual({r['k'] for r in plan}, {0, 1, 3, 5, 7, 9})
         self.assertEqual(Counter(r['suite'] for r in plan),
-                         {'workspace': 7200, 'travel': 1920, 'banking': 1920, 'slack': 1512})
+                         {'workspace': 10800, 'travel': 2880, 'banking': 2880, 'slack': 2268})
         self.assertEqual(len({r['episode_id'] for r in plan}), len(plan))
         for r in plan:
             self.assertEqual(r['status'], 'pending')

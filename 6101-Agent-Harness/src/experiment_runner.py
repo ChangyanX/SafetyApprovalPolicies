@@ -10,6 +10,7 @@ from agentdojo.attacks.attack_registry import ATTACKS
 from agentdojo.task_suite.load_suites import get_suite, get_suites
 
 from .policy import DEFAULT_POLICY_LABELS, POLICY_LABELS
+from .experiment_config import DEFAULT_K_VALUES
 
 
 def _unique(values, label):
@@ -35,7 +36,7 @@ def build_experiment_plan(
     not a statement of attack feasibility or successful model execution.
     """
     policies = list(DEFAULT_POLICY_LABELS) if policies is None else policies
-    k_values = [0, 1, 3, 5] if k_values is None else k_values
+    k_values = list(DEFAULT_K_VALUES) if k_values is None else k_values
     attack_methods = ['direct'] if attack_methods is None else attack_methods
     if suite_name is not None and suite_names is not None:
         raise ValueError('Use suite_name or suite_names, not both')

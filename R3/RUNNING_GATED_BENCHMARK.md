@@ -1,5 +1,7 @@
 # Run the connected R3 and baseline benchmark
 
+Budget update (21 October 2026): use $k\in\{0,1,3,5,7,9\}$ for new sweeps. Regenerate manifests and use fresh output directories; recorded historical results below retain their original budgets. See [the current banking guide](../docs/BANKING_EVALUATION_GUIDE.md).
+
 The execution connection is now implemented. `src.experiment_runner` remains the **planner**; `src.run_experiments` **executes** selected rows. They share the existing manifest, so you do not need to generate it again.
 
 The connected factory is in [pipeline.py](../6101-Agent-Harness/src/pipeline.py), the repeated gate/executor in [gated_runtime.py](../6101-Agent-Harness/src/gated_runtime.py), and the executable driver in [run_experiments.py](../6101-Agent-Harness/src/run_experiments.py). The older standalone `GateElement` is a legacy fixture, not the live execution path.
@@ -135,24 +137,24 @@ Look for successful tasks with actual tool invocations. If every screen task sto
 
 #### B. Freeze a small matched development cohort and sweep budgets
 
-Choose tasks after inspecting the screen, and disclose that selection as development selection. Include ordinary failures as well as successes when characterizing the broader workload. The commands below use banking tasks 0, 1 and 2 as a **starting cohort, not verified successful tasks**; replace the repeated task filters consistently if the screen indicates other useful development tasks. Use the existing grid $k\in\{0,1,3,5\}$, rather than requesting budgets absent from the manifest.
+Choose tasks after inspecting the screen, and disclose that selection as development selection. Include ordinary failures as well as successes when characterizing the broader workload. The commands below use banking tasks 0, 1 and 2 as a **starting cohort, not verified successful tasks**; replace the repeated task filters consistently if the screen indicates other useful development tasks. Use the existing grid $k\in\{0,1,3,5,7,9\}$, rather than requesting budgets absent from the manifest.
 
 ```bash
 ../.venv/bin/python -B -m src.run_experiments \
   --manifest runs/r3_matched_plan.csv \
   --output-dir runs/r3_dev_clean_v1 \
   --suite banking --task user_task_0 --task user_task_1 --task user_task_2 \
-  --condition clean --k 0 --k 1 --k 3 --k 5 --all
+  --condition clean --k 0 --k 1 --k 3 --k 5 --k 7 --k 9 --all
 
 ../.venv/bin/python -B -m src.run_experiments \
   --manifest runs/r3_matched_plan.csv \
   --output-dir runs/r3_dev_attacked_v1 \
   --suite banking --task user_task_0 --task user_task_1 --task user_task_2 \
   --condition attacked --injection-task injection_task_0 \
-  --k 0 --k 1 --k 3 --k 5 --all
+  --k 0 --k 1 --k 3 --k 5 --k 7 --k 9 --all
 ```
 
-With the current plan, each command selects 3 tasks × 5 policies × 4 budgets = **60 episodes**, or 120 total. Start with one task (20 episodes per condition) if a smaller diagnostic is needed. The attacked command uses one objective per task; official setup can still fail for a task/objective pair. Inspect `attack_setup.json`, audit events and retrieved tool messages to establish whether the injected content was actually delivered. A setup file alone does not prove exposure. Record non-exposure, setup errors and exclusions; do not silently count them as demonstrated defenses or discard them to improve a score.
+After regenerating the plan with the current grid, each command selects 3 tasks × 5 policies × 6 budgets = **90 episodes**, or 180 total. Start with one task (30 episodes per condition) if a smaller diagnostic is needed. The attacked command uses one objective per task; official setup can still fail for a task/objective pair. Inspect `attack_setup.json`, audit events and retrieved tool messages to establish whether the injected content was actually delivered. A setup file alone does not prove exposure. Record non-exposure, setup errors and exclusions; do not silently count them as demonstrated defenses or discard them to improve a score.
 
 A useful attack diagnostic is an exposed `full_approve` trajectory in which the attack succeeds, compared with the same task/objective under other policies. If the unrestricted agent resists every attack, that is a valid outcome, but this cohort cannot show an incremental reduction in attack success. It can still expose completion/review tradeoffs. Retain non-exposed and resisted cases in the declared overall cohort; any exposure-specific analysis is supplementary and must show its denominator. Do not condition the main policy comparison on each policy's own exposure, because policy decisions can alter exposure.
 

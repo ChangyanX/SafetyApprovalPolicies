@@ -357,7 +357,7 @@ Use deterministic fake agents/reviewers for enforcement checks, then a small rea
 
 ### Step 3: run matched development episodes
 
-Within every suite, for each matched task/condition/repeat run required full approve, full escalate and hybrid at k in {0,1,3,5}. Add fixed-allocation hybrid to test the budget contribution; retain metadata policy where affordable. Reuse full-approve results across k only when settings are identical and label the reuse. Do not treat copied plot points as independent trials.
+Within every suite, for each matched task/condition/repeat run required full approve, full escalate and hybrid at $k\in\{0,1,3,5,7,9\}$. Add fixed-allocation hybrid to test the budget contribution; retain metadata policy where affordable. Reuse full-approve results across k only when settings are identical and label the reuse. Do not treat copied plot points as independent trials.
 
 Use identical fixed attack payloads across policies for an initial controlled comparison. If adaptive attacks are added, specify their defender access and construction budget separately. A changed attack payload cannot be hidden inside what is presented as a policy-only comparison.
 

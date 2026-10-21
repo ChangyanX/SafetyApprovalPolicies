@@ -1,5 +1,7 @@
 # Matched development rerun v2
 
+Budget update (21 October 2026): use $k\in\{0,1,3,5,7,9\}$ for new sweeps. Regenerate manifests and use fresh output directories; recorded historical results below retain their original budgets. See [the current banking guide](../docs/BANKING_EVALUATION_GUIDE.md).
+
 Updated 21 October 2026. Status: ready for the matched development cohort. All 62 offline unittest checks passed. The live clean preflight completed successfully with official utility=True, three executed tool calls, zero reviews and no API timeout. This is a development rerun, not a held-out evaluation or a claim of improved TCR.
 
 ## Why v2
@@ -39,20 +41,20 @@ The preflight directory now exists: preserve it. Do not repeat the creation comm
 
 ## 2. Matched cohort (only after preflight succeeds)
 
-Keep the same three banking tasks, one direct injection objective, all five policies, k={0,1,3,5}, one repetition: 60 clean + 60 attacked episodes. Run sequentially with the same model weights and source tree; do not edit prompts/code or pull new weights between commands.
+Keep the same three banking tasks, one direct injection objective, all five policies, $k\in\{0,1,3,5,7,9\}$, one repetition: 90 clean + 90 attacked episodes. Run sequentially with the same model weights and source tree; do not edit prompts/code or pull new weights between commands.
 
 ```bash
 ../.venv/bin/python -B -m src.run_experiments \
   --manifest runs/r3_matched_plan.csv --output-dir runs/r3_dev_clean_v2 \
   --suite banking --task user_task_0 --task user_task_1 --task user_task_2 \
-  --condition clean --k 0 --k 1 --k 3 --k 5 \
+  --condition clean --k 0 --k 1 --k 3 --k 5 --k 7 --k 9 \
   --timeout 300 --alpha 0.7 --tau0 0.15 --delta 0.05 --all
 
 ../.venv/bin/python -B -m src.run_experiments \
   --manifest runs/r3_matched_plan.csv --output-dir runs/r3_dev_attacked_v2 \
   --suite banking --task user_task_0 --task user_task_1 --task user_task_2 \
   --condition attacked --injection-task injection_task_0 \
-  --k 0 --k 1 --k 3 --k 5 \
+  --k 0 --k 1 --k 3 --k 5 --k 7 --k 9 \
   --timeout 300 --alpha 0.7 --tau0 0.15 --delta 0.05 --all
 
 ../.venv/bin/python -B -m src.r3_compare \

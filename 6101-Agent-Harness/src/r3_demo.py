@@ -5,6 +5,7 @@ from copy import deepcopy
 import json
 from pathlib import Path
 from .policy import make_policy
+from .experiment_config import DEFAULT_K_VALUES
 from .scope_policy import ScopeAwarePolicy
 from .tool_risk import load_tool_risk_metadata, risk_for
 from .types import GateInput, Decision
@@ -36,7 +37,7 @@ def run_demo():
              note='Implicit user phone disclosure prevents automatic approval.')])
     rows=[]
     for scenario in scenarios:
-        for k in [0,1,3]:
+        for k in DEFAULT_K_VALUES:
             for label in ['full_approve','full_escalate','risk_based','hybrid_stub_fixed','hybrid_stub']:
                 policy=make_policy(label,catalog)
                 episode=f'{scenario["id"]}-{label}-k{k}'
@@ -64,7 +65,7 @@ def run_demo():
                     note=scenario['note'],reviews_used=k-budget,executions=sum(e['executed'] for e in events),
                     events=events,state=policy.snapshot() if isinstance(policy,ScopeAwarePolicy) else None))
     return dict(kind='synthetic_offline_decision_demo',warning='No LLM requests, tool execution, AgentDojo scores or proof of policy improvement. Execution feedback and reviewer outcomes are scripted fixtures.',
-                configuration=dict(alpha=.7,tau0=.15,delta=.1),rows=rows)
+                configuration=dict(alpha=.7,tau0=.15,delta=.1,k_values=list(DEFAULT_K_VALUES)),rows=rows)
 
 
 def main(argv=None):

@@ -133,7 +133,7 @@ cd 6101-Agent-Harness
 ../.venv/bin/python -B -m src.r3_demo --output runs/r3_demo.json
 ```
 
-Use `--overwrite` deliberately if rerunning an existing output. The demo has six synthetic scenarios, five policies and three budgets: 90 cells. It uses real policy implementations and registered argument validation, but **scripted reviewer answers and execution feedback**. It makes no LLM calls or real tool executions. Counts of approvals and reviews are demonstration outputs, not utility/security measurements. Open [the HTML walkthrough](r3_workflow.html) to filter the cells and inspect evidence and decisions without installing a renderer.
+Use `--overwrite` deliberately if rerunning an existing output. The demo has six synthetic scenarios, five policies and six budgets: 180 cells. It uses real policy implementations and registered argument validation, but **scripted reviewer answers and execution feedback**. It makes no LLM calls or real tool executions. Counts of approvals and reviews are demonstration outputs, not utility/security measurements. Open [the HTML walkthrough](r3_workflow.html) to filter the cells and inspect evidence and decisions without installing a renderer.
 
 ## Compare with baselines
 
@@ -149,7 +149,7 @@ From `6101-Agent-Harness`:
 ../.venv/bin/python -B -m src.experiment_runner \
   --policy full_approve --policy full_escalate --policy risk_based \
   --policy hybrid_stub_fixed --policy hybrid_stub \
-  --k 0 --k 1 --k 3 --k 5 --attack direct --repeats 1 \
+  --k 0 --k 1 --k 3 --k 5 --k 7 --k 9 --attack direct --repeats 1 \
   --output runs/r3_matched_plan.csv
 ```
 

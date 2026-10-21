@@ -26,14 +26,14 @@ HTML = r'''<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name
 </svg></div></section>
 <section><h2>2 · Why these boundaries?</h2><div class="grid"><div class="mini"><strong>Complete subgoals</strong><p>Match every effective argument to one grant. Do not mix one recipient with another request's amount.</p></div><div class="mini"><strong>Actual effects</strong><p>Implicit disclosure stays unresolved. Pending capacity prevents duplicate approvals before execution feedback.</p></div><div class="mini"><strong>Conservative uncertainty</strong><p>Unrecognized tasks remain unresolved. Valid citations alone cannot authorize a call.</p></div></div>
 <div class="formula">p = n v [α + (1 − α)c] &nbsp; · &nbsp; τ(b) = τ₀ + δ/b</div><p>Development defaults: α = 0.7, τ₀ = 0.15, δ = 0.1. Fixed allocation uses τ₀. These settings are not tuned or proven optimal.</p><p class="muted">Necessity: exact grant = 1, lexical relevance = 0.5, otherwise 0. Inspectable review opportunity = 0.5, otherwise 0. Metadata consequence = 0 / 0.5 / 1. These ordinal heuristics are not probabilities.</p></section>
-<section><h2>3 · Interactive offline demo</h2><p>Each cell starts a fresh episode. Compare identical proposals and scripted reviewer answers. “Executions” below are simulated feedback.</p><div class="controls"><label>Scenario<select id="scenario"></select></label><label>Review budget k<select id="budget"><option>0</option><option selected>1</option><option>3</option></select></label></div><p id="note"></p><p id="summary" aria-live="polite"></p><div class="table"><table><thead><tr><th>Policy</th><th>Decisions in order</th><th>Reviews</th><th>Simulated executions</th><th>Inspect</th></tr></thead><tbody id="rows"></tbody></table></div><h3 id="detail-title">Decision details</h3><pre id="detail" tabindex="0"></pre></section>
+<section><h2>3 · Interactive offline demo</h2><p>Each cell starts a fresh episode. Compare identical proposals and scripted reviewer answers. “Executions” below are simulated feedback.</p><div class="controls"><label>Scenario<select id="scenario"></select></label><label>Review budget k<select id="budget"><option>0</option><option selected>1</option><option>3</option><option>5</option><option>7</option><option>9</option></select></label></div><p id="note"></p><p id="summary" aria-live="polite"></p><div class="table"><table><thead><tr><th>Policy</th><th>Decisions in order</th><th>Reviews</th><th>Simulated executions</th><th>Inspect</th></tr></thead><tbody id="rows"></tbody></table></div><h3 id="detail-title">Decision details</h3><pre id="detail" tabindex="0"></pre></section>
 <section><h2>4 · Compare against baselines</h2><ol><li>Run offline tests/demo: changed targets, duplicates, budget exhaustion and assessor failure.</li><li>Create a matched all-suite manifest for the five policies.</li><li>Use the connected runner. Preserve original AgentDojo tasks; use matched models, attacks, reviewer and episode bounds.</li><li>Export actual official results and execution traces; run the comparison command below.</li><li>Tune fixed and dynamic allocation equally on development tasks, freeze, and compare held-out results with error coverage and uncertainty.</li></ol>
 <pre>cd 6101-Agent-Harness
 ../.venv/bin/python -B -m src.r3_demo --output runs/r3_demo.json
 ../.venv/bin/python -B -m src.experiment_runner \
   --policy full_approve --policy full_escalate --policy risk_based \
   --policy hybrid_stub_fixed --policy hybrid_stub \
-  --k 0 --k 1 --k 3 --k 5 --output runs/r3_matched_plan.csv
+  --k 0 --k 1 --k 3 --k 5 --k 7 --k 9 --output runs/r3_matched_plan.csv
 # Run five clean pilot episodes once Ollama is ready:
 ../.venv/bin/python -B -m src.run_experiments \
   --manifest runs/r3_matched_plan.csv --output-dir runs/r3_clean_pilot \
@@ -77,7 +77,7 @@ def main(argv=None):
     for row in demo['rows']:row.pop('state',None)
     data=json.dumps(demo,separators=(',',':'),allow_nan=False).replace('<','\\u003c')
     write('r3_workflow.html',HTML.replace('__DATA__',data))
-    print(f'Generated workflow, 90-cell demo audit, schemas and examples in {root.resolve()}')
+    print(f'Generated workflow, {len(demo["rows"])}-cell demo audit, schemas and examples in {root.resolve()}')
 
 
 if __name__=='__main__':main()

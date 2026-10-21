@@ -2,6 +2,10 @@
 
 Date: 21 October 2026. Scope: the merged repository, its connected execution path, shared regression tests, the two-page course handout and the internal project guidelines. Current user scope is banking only. See [the operational guide](BANKING_EVALUATION_GUIDE.md) for all commands and policy diagrams.
 
+## Budget-grid update
+
+The current user-confirmed grid is $k\in\{0,1,3,5,7,9\}$. Planner defaults, pilots, full-run commands, synthetic demo artifacts and the legacy pending-only plan now use this grid. Existing frozen evaluation results remain unchanged. The updated four-policy banking sweep has $16(1+9)\times4\times6\times3=11520$ episodes; its held-out subset has $13(1+9)\times4\times6\times3=9360$ episodes. The updated 11,520-row banking manifest was generated and every row passed offline validation; all 194 harness tests passed (one opt-in live test skipped). The refreshed synthetic artifacts contain 180 cells, and the pending-only legacy manifest contains 2,592 rows with its original schema. The earlier 9,600-row validation below records the original audit, not the new experiment size.
+
 ## Verdict
 
 **Before fixes:** not ready for trustworthy full evaluation or automatic generation of the handout evidence.

@@ -30,7 +30,7 @@ A reviewer is not the R4 assessor. `RiskBasedPolicy` currently acts on tool-name
 
 ## 3. Benchmark-aligned multi-domain scope
 
-Use installed AgentDojo 0.1.35, benchmark v1.2.2 across all four suites: 97 user tasks and 74 tool registrations. Use the [shared checks and per-domain matrix](MULTI_DOMAIN_POLICY_SCOPE.md). The banking table below is a worked example, not a restriction to that domain. The existing planner's k in {0,1,3,5} is the development starting point; final workload and thresholds are not frozen.
+Use installed AgentDojo 0.1.35, benchmark v1.2.2 across all four suites: 97 user tasks and 74 tool registrations. Use the [shared checks and per-domain matrix](MULTI_DOMAIN_POLICY_SCOPE.md). The banking table below is a worked example, not a restriction to that domain. The existing planner's $k\in\{0,1,3,5,7,9\}$ is the development starting point; final workload and thresholds are not frozen.
 
 | Banking operation | Policy checks |
 | --- | --- |

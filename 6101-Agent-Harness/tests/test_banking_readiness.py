@@ -19,7 +19,8 @@ def test_banking_cli_defaults_include_original_policy_and_task_filter(tmp_path):
     plan_main(['--output',str(path),'--task','user_task_0','--injection-task','injection_task_0'])
     with path.open(encoding='utf-8-sig') as file:
         rows=list(csv.DictReader(file))
-    assert len(rows)==32
+    assert len(rows)==48
+    assert {int(r['k']) for r in rows}=={0,1,3,5,7,9}
     assert {r['suite'] for r in rows}=={'banking'}
     assert {r['policy'] for r in rows}=={'full_approve','full_escalate','hybrid_llm','hybrid_llm_fixed'}
     assert {r['condition'] for r in rows}=={'clean','attacked'}

@@ -1,6 +1,6 @@
 # 6101 Agent Harnesses
 
-The active study is **banking only**. Read the [banking run and submission guide](../docs/BANKING_EVALUATION_GUIDE.md) for current diagrams, equations, exact commands and deliverables, and the [readiness audit](../docs/BANKING_READINESS_AUDIT.md) for validation and limitations.
+The active study is **banking only**, with $k\in\{0,1,3,5,7,9\}$. Read the [banking run and submission guide](../docs/BANKING_EVALUATION_GUIDE.md) for current diagrams, equations, exact commands and deliverables, and the [readiness audit](../docs/BANKING_READINESS_AUDIT.md) for validation and limitations.
 
 Use the root virtual environment and dependency lock. From this directory:
 

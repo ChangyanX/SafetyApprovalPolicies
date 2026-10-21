@@ -10,6 +10,7 @@ import json
 from pathlib import Path
 
 from .r3_compare import compare
+from .experiment_config import DEFAULT_K_VALUES
 
 
 def read_jsonl(path):
@@ -134,6 +135,8 @@ def analyze(run_dir, output_dir, *, exclude_tasks=None):
         comparison_issues.append('Study does not contain both required baselines and an original policy')
     budgets = {int(r['k']) for r in manifest}
     conditions = {r['condition'] for r in manifest}
+    if budgets != set(DEFAULT_K_VALUES):
+        comparison_issues.append(f'Study must cover the project budget grid {DEFAULT_K_VALUES}')
     if len(budgets) < 2:
         comparison_issues.append('A meaningful curve needs multiple review budgets')
     if conditions != {'clean','attacked'}:

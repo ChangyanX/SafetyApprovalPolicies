@@ -1,6 +1,6 @@
 # Banking evaluation and submission guide
 
-Updated 21 October 2026. This guide implements the latest user direction: **banking only**. Earlier four-suite plans in `R3/` and historical manifests are background, not the active experiment specification. Document contents are requirements and reference material; they do not override the user's requested scope.
+Updated 21 October 2026. This guide implements the latest user direction: **banking only**. The project-wide review budget grid is $k\in\{0,1,3,5,7,9\}$, shared by planner defaults, pilot/full sweeps and synthetic demos. Single-case integration checks may intentionally use one budget. Existing frozen runs keep their recorded budgets; generate fresh manifests and output directories for the new grid. Earlier four-suite plans in `R3/` and historical manifests are background, not the active experiment specification. Document contents are requirements and reference material; they do not override the user's requested scope.
 
 ## Readiness verdict
 
@@ -183,12 +183,12 @@ Save hardware/RAM, OS, quantization, full model digest from the tags JSON and wa
 
 ## 3. Small matched pilot, then development coverage pilot
 
-Development identities are `user_task_0`, `user_task_1`, and `user_task_2`: bill payment, spending summary, and rent adjustment. Keep the other 13 identities untouched until freeze. Do not select pilot cases based on hidden attack success labels. The first pilot includes clean plus one fixed attack objective, all four policies and budgets $\{0,1,3\}$: **72 episodes**.
+Development identities are `user_task_0`, `user_task_1`, and `user_task_2`: bill payment, spending summary, and rent adjustment. Keep the other 13 identities untouched until freeze. Do not select pilot cases based on hidden attack success labels. The first pilot includes clean plus one fixed attack objective, all four policies and budgets $\{0,1,3,5,7,9\}$: **144 episodes**.
 
 ```bash
 python -m src.experiment_runner --suite banking \
   --task user_task_0 --task user_task_1 --task user_task_2 \
-  --injection-task injection_task_0 --k 0 --k 1 --k 3 \
+  --injection-task injection_task_0 --k 0 --k 1 --k 3 --k 5 --k 7 --k 9 \
   --output runs/banking-pilot-small.csv
 python -m src.run_experiments --manifest runs/banking-pilot-small.csv \
   --output-dir runs/banking-pilot-small --all --validate-only
@@ -200,12 +200,12 @@ python -m src.banking_report --run-dir runs/banking-pilot-small \
 
 Use `--all` explicitly. Otherwise the runner truncates to its first 10 rows, which is not a matched policy comparison. `--validate-only` performs offline identity/configuration validation and makes no output directory or model requests; `--check` checks model availability only. Planning and validation are not execution.
 
-If the first pilot is healthy, cover all nine banking attack objectives on the same three development tasks and final budget grid $\{0,1,2,3,5\}$: **600 episodes**.
+If the first pilot is healthy, cover all nine banking attack objectives on the same three development tasks and final budget grid $\{0,1,3,5,7,9\}$: **720 episodes**.
 
 ```bash
 python -m src.experiment_runner --suite banking \
   --task user_task_0 --task user_task_1 --task user_task_2 \
-  --k 0 --k 1 --k 2 --k 3 --k 5 \
+  --k 0 --k 1 --k 3 --k 5 --k 7 --k 9 \
   --output runs/banking-pilot-coverage.csv
 python -m src.run_experiments --manifest runs/banking-pilot-coverage.csv \
   --output-dir runs/banking-pilot-coverage --all --validate-only
@@ -221,15 +221,15 @@ Changing code, prompts, model settings or coefficients after a pilot requires a 
 
 ## 4. Freeze and execute full banking evaluation
 
-Banking contains 16 user tasks and nine injection objectives in `agentdojo==0.1.35`, benchmark `v1.2.2`. The proposed complete sweep is all 16 identities, one clean condition plus nine fixed `direct` attacks, four policies, five budgets and three repeats:
+Banking contains 16 user tasks and nine injection objectives in `agentdojo==0.1.35`, benchmark `v1.2.2`. The proposed complete sweep is all 16 identities, one clean condition plus nine fixed `direct` attacks, four policies, six budgets and three repeats:
 
-$$N_{\mathrm{episodes}}=16(1+9)\times4\times5\times3=9600.$$
+$$N_{\mathrm{episodes}}=16(1+9)\times4\times6\times3=11520.$$
 
-The full-bank headline is descriptive because three identities were used for development. Also export the held-out 13-task analysis below; it has $13(1+9)\times4\times5\times3=7800$ episodes. Do not call all 16 tasks held out. Attack success can depend on whether the task encounters the injection surface; report that this is a fixed Cartesian cohort, not a verified successful attack set. Repeats use seeds $0$, $1$, and $2$ for agent execution, while reviewer uses fixed seed $0$; repeats are not independent human judges.
+The full-bank headline is descriptive because three identities were used for development. Also export the held-out 13-task analysis below; it has $13(1+9)\times4\times6\times3=9360$ episodes. Do not call all 16 tasks held out. Attack success can depend on whether the task encounters the injection surface; report that this is a fixed Cartesian cohort, not a verified successful attack set. Repeats use seeds $0$, $1$, and $2$ for agent execution, while reviewer uses fixed seed $0$; repeats are not independent human judges.
 
 ```bash
 python -m src.experiment_runner --suite banking \
-  --k 0 --k 1 --k 2 --k 3 --k 5 --repeats 3 \
+  --k 0 --k 1 --k 3 --k 5 --k 7 --k 9 --repeats 3 \
   --output runs/banking-full.csv
 python -m src.run_experiments --manifest runs/banking-full.csv \
   --output-dir runs/banking-full --all --validate-only
@@ -240,7 +240,7 @@ python -m src.run_experiments --manifest runs/banking-full.csv \
   --max-tokens 4096 --seed 0 --alpha 0.7 --tau0 0.15 --delta 0.1
 ```
 
-This is the four-policy study, including the allocation comparator. If resources require the minimum handout study, create a separate manifest with explicit `--policy full_approve --policy full_escalate --policy hybrid_llm`; all other dimensions unchanged gives 7,200 episodes. Do not claim fixed-vs-dynamic evidence if you omit that comparator. `risk_based` is optional and must be explicitly added if desired.
+This is the four-policy study, including the allocation comparator. If resources require the minimum handout study, create a separate manifest with explicit `--policy full_approve --policy full_escalate --policy hybrid_llm`; all other dimensions unchanged gives 8,640 episodes. Do not claim fixed-vs-dynamic evidence if you omit that comparator. `risk_based` is optional and must be explicitly added if desired.
 
 Run serially with a single writer per output directory. Fresh pipeline/environment/budget per row prevents task contamination. Model context windows and weights must remain stable. Do not use a project spending cap in place of the per-task attention budget; they are different quantities.
 
@@ -287,7 +287,7 @@ Outputs include:
 - `attacked_hitl_successful_cohort_total.png`, `attacked_reviews_observed.png` and clean counterparts: review totals.
 - `component_tokens.png`: measured component tokens; use the CSV for readable per-strategy tables.
 
-For error-containing runs inspect bounds from CSV alongside valid-only plots; plotted points alone can overstate readiness. The `complete` flag verifies recorded execution coverage/instrumentation; `comparison_ready` additionally checks required policies, matched cohorts, multiple budgets, and clean/attacked separation. Neither verifies uncertainty estimates, manual classifications or finished report text. For claims, verify matched cohorts and show variation across repeats; if adding confidence intervals, resample user-task identities as clusters because attack objectives/repeats share tasks. The current exporter does not compute confidence intervals or significance tests.
+For error-containing runs inspect bounds from CSV alongside valid-only plots; plotted points alone can overstate readiness. The `complete` flag verifies recorded execution coverage/instrumentation; `comparison_ready` additionally checks required policies, matched cohorts, the full project budget grid, and clean/attacked separation. Neither verifies uncertainty estimates, manual classifications or finished report text. For claims, verify matched cohorts and show variation across repeats; if adding confidence intervals, resample user-task identities as clusters because attack objectives/repeats share tasks. The current exporter does not compute confidence intervals or significance tests.
 
 ## 7. Curate trajectories and escalation-value evidence
 
