@@ -221,3 +221,6 @@ __marimo__/
 .env.*
 !.env.example
 .DS_Store
+
+*/runs/provenance
+*/runs/banking-offline-smoke
