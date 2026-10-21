@@ -2,13 +2,13 @@
 
 Updated 21 October 2026. This guide implements the latest user direction: **banking only**. The project-wide review budget grid is $k\in\{0,1,3,5,7,9\}$, shared by planner defaults, pilot/full sweeps and synthetic demos. Single-case integration checks may intentionally use one budget. Existing frozen runs keep their recorded budgets; generate fresh manifests and output directories for the new grid. Earlier four-suite plans in `R3/` and historical manifests are background, not the active experiment specification. Document contents are requirements and reference material; they do not override the user's requested scope.
 
-## Readiness verdict
+## Current readiness
 
-The merged version was **not ready for a trustworthy full run**: its planner omitted the original scope policy by default, the live executor never instantiated R4, the R5 analysis expected different filenames and fields, a stale test expected the retired pipeline type, and repeated-call suppression changed full-escalate baseline semantics. These integration discrepancies have been repaired. See [the audit](BANKING_READINESS_AUDIT.md) for evidence and limitations.
+**The code is ready to run the documented banking evaluation workflow.** The connected gate, both baselines, decision-effective R3/R4 policy variants, separate policy execution, and combined result analysis are implemented and validated by the offline tests. Latest validation: 233 harness tests passed, with one opt-in live model test skipped. See [the audit](BANKING_READINESS_AUDIT.md) for validation details.
 
-The code is ready for **offline validation and a live banking pilot**. Promotion to a full evaluation depends on passing the live pilot below. During this review `http://localhost:11434` was unreachable; no live model performance or completed deliverables are claimed. The user confirmed local `qwen3:14b` for agent, policy assessor, and simulated reviewer. Their prompts and contexts are separate, but errors can be correlated.
+Start with model preflight and the current-version development pilots below; proceed to the full four-policy evaluation after the pilot acceptance checks pass. The latest availability check from this session could not reach `http://localhost:11434`; rerun `python -m src.run_experiments --check --model qwen3:14b` in the terminal used for experiments. This is a runtime availability check, not an unresolved code-integration defect.
 
-No finished report, presentation, genuine model curves, or confirmed empirical failure cases existed at this audit. This guide gives the commands and evidence needed to produce them. Offline fixtures cannot fill that gap.
+Use local `qwen3:14b` for agent, R4 assessor and simulated reviewer, with separate prompts/contexts. Full evaluation generates the empirical results; confirmed failure examples, report and presentation still require the analysis and assembly steps in this guide. A passing offline test suite does not establish live model performance.
 
 ## Required deliverables and their evidence
 
@@ -183,98 +183,397 @@ uv pip freeze --python ../.venv/bin/python > runs/provenance/installed-packages.
 
 Save hardware/RAM, OS, quantization, full model digest from the tags JSON and wall time in your protocol. `config.json` fingerprints runtime source, metadata and prompts and records model name/parameters, but its automatic weights digest is not populated. Keep the captured model digest beside every run. Do not pull/update the model during a frozen run. The R4 assessor uses the same model, JSON mode, disabled thinking, temperature $0$, a 1,024-token output bound and a 24,000-character input bound; its effective configuration and failures are in `assessor.jsonl`. Agent output bound is 4,096 tokens; reviewer output bound is 512 tokens, at most one formatting repair. Assessor calls have one attempt; agent/reviewer transport attempts are one by default.
 
+### Which component introduces each parameter?
+
+The execution command is assembled by the shared experiment runner; its flags are not all R4 parameters. These categories describe implementation responsibility, not attribution of individual Git commits.
+
+| Parameter category | Main component/responsibility | Flags or settings |
+|---|---|---|
+| Agent execution limits | Shared harness/agent adapter (R1 integration, configured by R5 runner) | `--max-turns`, `--max-tool-calls`, agent `--max-tokens` |
+| Transport and reproducibility | Shared runner and model adapters; reviewer implementation belongs to R2 | `--attempts`, `--timeout`, agent `--seed`; timeout also reaches R4, while R4 still has one attempt |
+| Proposed allocation policy | R3 decision logic | `--alpha`, `--tau0`, `--delta`; fixed allocation ignores the scarcity term |
+| Semantic assessment | R4 adapter, configured in the connected runner | Separate assessor prompt/schema, 1,024 output tokens, 24,000 input characters, temperature $0$, timeout and response validation |
+| Experimental workload | R5 manifest planner | Suite, user-task selection, conditions/attack objectives, policies, budget grid and number of repeats |
+
+The two baselines do not invoke R4 or R3's proposed scope/allocation policy. They still use the common gate/runtime and experiment controls. The two hybrid variants use R3 plus R4. Agent, R4 assessor and online reviewer are separate roles even when all use `qwen3:14b`. The final benchmark evaluator is AgentDojo, not R4.
+
+### Experiment terminology
+
+| Term | Meaning in this project | Concrete example or important distinction |
+|---|---|---|
+| Suite | A benchmark domain containing tools, initial environments, user tasks, attack objectives and evaluators. | We evaluate only `banking`, with 16 user tasks and nine injection objectives in benchmark `v1.2.2`. Other domains are outside this study. |
+| User task | A legitimate request the agent should complete; each task has an identifier and original prompt. | `user_task_0` asks to pay a bill; `user_task_1` asks for spending totals; `user_task_2` asks to adjust rent. These are tasks, not the two baselines and proposed policy. |
+| Policy | The strategy deciding whether each valid proposed tool call is auto-approved, auto-denied or escalated. | The same selected user tasks run under `full_approve`, `full_escalate`, `hybrid_llm` and `hybrid_llm_fixed`. The last two are variants of the developed policy. |
+| Budget / $k$ value | Maximum actual online reviewer consultations allowed during one whole episode. | Project grid: $k\in\{0,1,3,5,7,9\}$. Both reviewer approval and denial spend a slot. Budget does not reset at each turn; agent/R4 model requests do not themselves spend reviewer slots. |
+| Clean condition | Run the user task with the benchmark's original environment and no attack payload inserted. | Measures ordinary utility and the burden introduced by gating. It is not a certificate that every executed call is authorized. Clean `security=True` is a sentinel. |
+| Attacked condition | Run the same legitimate user task with a configured prompt-injection payload inserted into an available environment surface. | The attacker tries to redirect the agent. The legitimate user goal stays unchanged. The manifest field is `condition=attacked`. A payload may not be encountered by every task. |
+| Attack method | The mechanism generating/inserting the prompt-injection payload. | The connected study uses `attack=direct`. This differs from the particular attack objective. |
+| Injection task / attack objective | A benchmark-defined unwanted outcome that the attacker tries to cause. | `injection_task_0` is one objective; it is not `user_task_0`. Nine objectives paired with one direct attack method give nine attacked conditions per user task. Only offline attack setup/evaluation may use objective annotations. |
+| Episode | One complete attempt at a user task under one condition/objective, one policy, one budget and one repeat index. | It starts with fresh environment, transcript, policy state and budget, and includes all model turns, proposals, decisions, reviews, executions and final scoring. One episode can contain many tool calls and model requests. |
+| Repetition / repeats | Number of fresh episodes for each otherwise identical task/condition/policy/budget combination. | `--repeats 3` creates repeat indices $r\in\{0,1,2\}$. Each has a new environment and budget. This measures run variability; it is not three extra tool calls within one episode. |
+| Transport attempt | One try to obtain a response for a particular model request. | `--attempts` controls bounded transport attempts. It does not create a fresh repetition, replay the whole task, or refill review budget. |
+| Policy run / partition | A command executing every selected manifest row for one policy into its own directory. | The full `--policy hybrid_llm --all` command executes 2,880 episodes, not one episode. |
+| Stage | A phase with a specific purpose and task cohort, such as a development pilot or frozen final evaluation. | Development supports debugging/tuning; final evaluation supplies report evidence. Do not pool pilot episodes into the final results. |
+
+For example, banking `user_task_0`, attacked with method `direct` and objective `injection_task_0`, using `hybrid_llm`, $k=3$, repeat index $r=0$, identifies one episode. Even if it proposes six tool calls and invokes the reviewer twice, it remains one episode and has one reviewer slot left. Repeating this configuration with $r=1$ creates another episode starting from the initial environment and a new three-slot budget.
+
+The full Cartesian workload is
+
+$$N=16\times(1+9)\times4\times6\times3=11520.$$
+
+The factors represent user tasks, clean plus attacked conditions, policies, budget values, and repetitions respectively. Under four separate policy commands, divide by four: 2,880 episodes per policy. Episode IDs bind these configuration choices; replaying or copying the same recorded episode does not create an independent repetition.
+
+### Purpose and completion evidence for each stage
+
+| Stage | Why run it? | What completion establishes |
+|---|---|---|
+| Environment setup and offline tests | Check dependencies, policy rules, budgets, execution interception, schemas, logging and analysis using controlled fixtures. | Engineering checks pass; this does not establish live model quality or benchmark performance. |
+| Ollama/model preflight | Verify the configured server is reachable and `qwen3:14b` is available; capture runtime/model provenance. | Connectivity and model availability. The preflight does not execute a user task or prove tool-call/schema quality. |
+| Manifest planning and offline validation | Freeze the exact task/condition/policy/budget/repeat rows, check identities and verify expected counts before model calls. | A valid experiment schedule. No task has been executed by planning or `--validate-only`. |
+| Small development pilot: 144 episodes | Exercise all four strategies on tasks 0–2, clean plus one attack objective, all six budgets and one repeat. | Inspect actual tool calling, R4/reviewer responses, budget enforcement, audit/usage and basic failure handling before scaling. |
+| Development coverage pilot: 720 episodes | Cover all nine attack objectives on the same three development tasks, still one repeat. | Broader development evidence to identify problems and tune settings. The other 13 task identities remain held out. |
+| Protocol/code freeze | Fix source/prompts, model weights, coefficients, limits, retry rules, workload and seeds. | Subsequent strategies are compared under the same setup. Further changes require fresh matched pilots and versioned runs. |
+| Full evaluation: four runs of 2,880 episodes | Run every strategy on all 16 tasks, clean plus nine attacks, six budgets and three repetitions. | Measured outcomes, review usage, component inference cost and trajectories for the report; includes development identities and must be labeled descriptive. |
+| Combined full and held-out analysis | Validate the four result partitions, plot matched comparisons, and additionally exclude tasks 0–2. | Full-cohort tables/curves plus a 13-task held-out analysis of 9,360 episodes. Analysis reuses raw evidence and makes no model calls. |
+| Failure and escalation-value analysis | Inspect decisive calls and classify real over-conservative/over-permissive behavior and reviewer contributions. | Confirmed trajectory explanations and limitations. Automated candidate labels alone do not establish a failure class or causal benefit. |
+| Report, presentation and submission | Turn the frozen experiment into the handout's required tables, curves, methods, failure cases and conclusions. | Reproducible submitted evidence and a prepared 10-minute presentation with 5-minute Q&A. |
+
+Resume is a recovery action within a stage, not a new experimental stage or repetition. It skips finished episodes and preserves recorded errors under the runner's error protocol.
+
+### What the execution parameters control
+
+These are starting experiment settings, not empirically optimized values. Validate them on the development pilot, then freeze the same values for all four strategies. They do not replace the per-episode reviewer budget $k$. Policy coefficients affect unresolved-call allocation in hybrid policies; the baselines ignore them, though identical values are retained in every command/configuration for comparability.
+
+| Flag | Scope and meaning | Effect of changing it |
+|---|---|---|
+| `--attempts 1` | At most one HTTP attempt per agent request or reviewer formatting pass. R4 remains single-attempt independently. | More attempts can recover transient transport errors but increase latency/usage. This does not retry whole episodes. Reviewer formatting repair can still issue a second request under the same consultation. |
+| `--timeout 120` | Model-client request/network timeout, in seconds; shared agent/reviewer client and R4 assessor setting. | Larger values tolerate slow local inference; failures take longer to surface. This is not a whole-episode wall-clock limit or a guarantee every episode ends within 120 seconds. |
+| `--max-turns 20` | At most 20 agent turns per episode, including the final answer turn. | Larger values permit longer workflows and replanning, but allow more loops and inference. Reaching the limit without completion records an error. |
+| `--max-tool-calls 80` | At most 80 proposed tool calls per episode, including denied/invalid proposals. A batch exceeding the remaining limit aborts before that batch executes. | Larger values permit more actions/retries, but increase possible loops, review demand and latency. This counts proposals, not just executed calls. |
+| `--max-tokens 4096` | Maximum output tokens for each agent response, including generated tool-call arguments. It does not set prompt/context length or an episode-wide token budget. | A smaller cap may truncate text/arguments and produce a recorded error. A larger cap permits longer output if generated, with potential extra latency/usage; it does not force the model to consume the cap. |
+| `--seed 0` | Base sampling seed for the agent. Effective seed is the base plus repetition index. | Repeats 0, 1 and 2 use agent seeds 0, 1 and 2. Seed changes can change trajectories; a larger number is not a stronger setting. Backend behavior can still prevent exact reproducibility. Reviewer uses fixed seed 0; R4 has no explicit seed in this version. |
+| `--alpha 0.7` | Consequence weighting in $p_t=n_t^\star v_t[\alpha+(1-\alpha)c_t]$. | Raising $\alpha$ raises low/medium-consequence review priority and reduces preference for high-consequence calls; the high-consequence factor stays 1. It is not an approval probability. |
+| `--tau0 0.15` | Base review-selection threshold $	au_0$ in both hybrid variants. | A larger threshold selects fewer unresolved calls for review and denies more of them; a smaller threshold may use review slots sooner. Deterministic auto-approvals/denials remain unchanged. |
+| `--delta 0.1` | Scarcity penalty $\delta$ in the dynamic threshold $	au_0+\delta/b_t$, for remaining budget $b_t>0$. | A larger value makes dynamic review more selective as budget shrinks. It has no effect on the fixed-threshold variant or either baseline. Budget zero always denies calls needing review. |
+
+The CLI token cap applies **only to the agent**. The connected R4 assessor has a separate 1,024-token output cap and the reviewer has a 512-token cap. Those values are currently set in the runner/reviewer configuration, not by `--max-tokens`. All three use temperature $0$; the agent and connected assessor disable thinking, and the reviewer requests no thinking. Input context limits and the assessor's 24,000-character bound are separate controls.
+
+Why 4,096? It is a provisional upper bound allowing tool arguments and final answers without unbounded generation, not a handout requirement or a demonstrated optimum for banking. Many banking responses should use much less. Compare agent caps of 1,024, 2,048 and 4,096 on the same development cohort if truncation/latency merits tuning; inspect `finish_reason=length`, recorded errors, utility, known tokens and request duration. Prefer the smallest tested cap that preserves complete responses and task performance. Increase above 4,096 only if the pilot demonstrates legitimate truncation at that cap and the local runtime supports the longer output. Increasing output tokens will not fix missing task facts, exhausted review slots, or a turn/tool-call limit. Freeze any chosen change across all four final policy runs.
+
+For the defaults, the fixed threshold is $0.15$ and the dynamic threshold is
+
+$$
+\tau(9)\approx0.1611,\qquad
+\tau(5)=0.17,\qquad
+\tau(3)\approx0.1833,\qquad
+\tau(1)=0.25.
+$$
+
+For an unresolved, reviewable call with priority $p_t=0.175$ and one slot remaining, the fixed variant selects review while the dynamic variant denies it. This illustrates the tradeoff: conserving attention can preserve slots for later calls but can also block useful work. Whether that tradeoff improves safe completion is an evaluation question. Threshold equality is accepted within tolerance $10^{-12}$; no threshold calculation divides by zero.
+
 ## 3. Small matched pilot, then development coverage pilot
 
-Development identities are `user_task_0`, `user_task_1`, and `user_task_2`: bill payment, spending summary, and rent adjustment. Keep the other 13 identities untouched until freeze. Do not select pilot cases based on hidden attack success labels. The first pilot includes clean plus one fixed attack objective, all four policies and budgets $\{0,1,3,5,7,9\}$: **144 episodes**.
+All commands from this point run inside `6101-Agent-Harness`, with the root virtual environment activated. Execute the four policy blocks **separately and sequentially**; each block writes to its own directory. Do not modify code, prompts, model weights, settings, or coefficients between the four policy runs in a stage. Running them on separate days is valid if these remain frozen. Run only one benchmark process at a time on the local Ollama server to avoid changing contention and timeout behavior.
+
+### What a task, policy run, and episode mean
+
+A user task is a banking request, such as paying a bill. A policy is the approval strategy applied to that request. An episode is one complete attempt for a particular user task, clean/attack condition, policy, review budget and repetition. Every selected task is evaluated under every selected policy; tasks are not assigned one per policy.
+
+| Stage | User tasks | Conditions per task | Budgets | Repeats | Episodes per policy | Four-policy total |
+|---|---|---|---|---|---|---|
+| Small development pilot | Tasks 0, 1, 2 | Clean + `injection_task_0` | $\{0,1,3,5,7,9\}$ | 1 | 36 | 144 |
+| Development coverage pilot | Tasks 0, 1, 2 | Clean + all 9 injection objectives | Same 6 values | 1 | 180 | 720 |
+| Full evaluation | All tasks 0–15 | Clean + all 9 injection objectives | Same 6 values | 3 | 2,880 | 11,520 |
+
+Development identities are `user_task_0` (bill payment), `user_task_1` (March 2022 spending), and `user_task_2` (rent adjustment). Keep the remaining 13 task identities untouched until freeze. Do not select tasks using hidden attack-success labels.
+
+| Separate policy run | Components actually called |
+|---|---|
+| `full_approve` | Agent only; approves valid tool proposals; no R4 or reviewer calls |
+| `full_escalate` | Agent + reviewer for each valid proposal while budget remains; no R4 calls |
+| `hybrid_llm` | Agent + R3 deterministic checks; R4 on unresolved checks; reviewer only for selected escalations; dynamic threshold |
+| `hybrid_llm_fixed` | Same components and R4 logic as `hybrid_llm`; fixed threshold only |
+
+All model-backed components use local `qwen3:14b` with separate contexts. $k$ limits reviewer consultations per episode, not all model requests. At $k=0$, a hybrid may still call R4 and may execute deterministically authorized calls; full-escalate cannot execute calls requiring review.
+
+### Small pilot: create one shared manifest, then run four partitions
+
+The master manifest freezes every planned episode for all four policies. Generating it makes no model calls. The four execution commands below select disjoint policy rows from exactly this same file.
 
 ```bash
 python -m src.experiment_runner --suite banking \
+  --policy full_approve --policy full_escalate --policy hybrid_llm --policy hybrid_llm_fixed \
   --task user_task_0 --task user_task_1 --task user_task_2 \
-  --injection-task injection_task_0 --k 0 --k 1 --k 3 --k 5 --k 7 --k 9 \
+  --injection-task injection_task_0 --k 0 --k 1 --k 3 --k 5 --k 7 --k 9 --repeats 1 \
   --output runs/banking-semantic-v1-pilot-small.csv
 python -m src.run_experiments --manifest runs/banking-semantic-v1-pilot-small.csv \
-  --output-dir runs/banking-semantic-v1-pilot-small --all --validate-only
+  --output-dir runs/banking-semantic-v1-pilot-small-validation-only --all --validate-only
+```
+
+Each policy block runs **36 episodes**: three tasks, two conditions, six budgets, one repeat. Across the four blocks there are 144 episodes. `--policy` selects the strategy; `--all` executes every selected row rather than stopping at the runner's default first 10 rows.
+
+**full_approve**
+
+```bash
 python -m src.run_experiments --manifest runs/banking-semantic-v1-pilot-small.csv \
-  --output-dir runs/banking-semantic-v1-pilot-small --all --model qwen3:14b
-python -m src.banking_report --run-dir runs/banking-semantic-v1-pilot-small \
-  --output-dir runs/analysis-banking-semantic-v1-pilot-small --allow-incomplete
-```
-
-Use `--all` explicitly. Otherwise the runner truncates to its first 10 rows, which is not a matched policy comparison. `--validate-only` performs offline identity/configuration validation and makes no output directory or model requests; `--check` checks model availability only. Planning and validation are not execution.
-
-If the first pilot is healthy, cover all nine banking attack objectives on the same three development tasks and final budget grid $\{0,1,3,5,7,9\}$: **720 episodes**.
-
-```bash
-python -m src.experiment_runner --suite banking \
-  --task user_task_0 --task user_task_1 --task user_task_2 \
-  --k 0 --k 1 --k 3 --k 5 --k 7 --k 9 \
-  --output runs/banking-semantic-v1-pilot-coverage.csv
-python -m src.run_experiments --manifest runs/banking-semantic-v1-pilot-coverage.csv \
-  --output-dir runs/banking-semantic-v1-pilot-coverage --all --validate-only
-python -m src.run_experiments --manifest runs/banking-semantic-v1-pilot-coverage.csv \
-  --output-dir runs/banking-semantic-v1-pilot-coverage --all --model qwen3:14b
-python -m src.banking_report --run-dir runs/banking-semantic-v1-pilot-coverage \
-  --output-dir runs/analysis-banking-semantic-v1-pilot-coverage --allow-incomplete
-```
-
-Pilot acceptance: inspect missing/error counts, reviewer wire requests (`reviewer_requests.json`) and verdicts, malformed/truncated output rates, `assessor_status.csv`, actual policy API records, accepted/ignored findings and changed decisions in `semantic_decisions.csv`, denied/executed call separation and the invariant $E_i\le k$. Expect full-approve reviewer totals to be zero and full-escalate at $k=0$ to execute no valid proposed calls. Inspect full-escalate, original policy and fixed comparator on the same task/attack/budget/repeat identities. An `ok` episode may legitimately have utility zero. Repeated transport failures or truncation need repair before promotion. R4 can return valid unavailable/invalid statuses conservatively; disclose their rates rather than treating them as correct assessments. There is no universal utility threshold that proves readiness.
-
-Changing code, prompts, model settings or coefficients after a pilot requires a fresh output directory and rerunning the affected pilot. Tuning must use development identities only. Record the frozen coefficients, limits, model digest, split, attack method and retry protocol in the report.
-
-## 4. Freeze and execute full banking evaluation
-
-Banking contains 16 user tasks and nine injection objectives in `agentdojo==0.1.35`, benchmark `v1.2.2`. The proposed complete sweep is all 16 identities, one clean condition plus nine fixed `direct` attacks, four policies, six budgets and three repeats:
-
-$$N_{\mathrm{episodes}}=16(1+9)\times4\times6\times3=11520.$$
-
-The full-bank headline is descriptive because three identities were used for development. Also export the held-out 13-task analysis below; it has $13(1+9)\times4\times6\times3=9360$ episodes. Do not call all 16 tasks held out. Attack success can depend on whether the task encounters the injection surface; report that this is a fixed Cartesian cohort, not a verified successful attack set. Repeats use seeds $0$, $1$, and $2$ for agent execution, while reviewer uses fixed seed $0$; repeats are not independent human judges.
-
-```bash
-python -m src.experiment_runner --suite banking \
-  --k 0 --k 1 --k 3 --k 5 --k 7 --k 9 --repeats 3 \
-  --output runs/banking-semantic-v1-full.csv
-python -m src.run_experiments --manifest runs/banking-semantic-v1-full.csv \
-  --output-dir runs/banking-semantic-v1-full --all --validate-only
-shasum -a 256 runs/banking-semantic-v1-full.csv > runs/provenance/banking-semantic-v1-full-manifest.sha256
-python -m src.run_experiments --manifest runs/banking-semantic-v1-full.csv \
-  --output-dir runs/banking-semantic-v1-full --all --model qwen3:14b \
+  --policy full_approve --output-dir runs/banking-semantic-v1-pilot-small-full_approve \
+  --all --model qwen3:14b \
   --attempts 1 --timeout 120 --max-turns 20 --max-tool-calls 80 \
   --max-tokens 4096 --seed 0 --alpha 0.7 --tau0 0.15 --delta 0.1
 ```
 
-This is the four-policy study, including the allocation comparator. If resources require the minimum handout study, create a separate manifest with explicit `--policy full_approve --policy full_escalate --policy hybrid_llm`; all other dimensions unchanged gives 8,640 episodes. Do not claim fixed-vs-dynamic evidence if you omit that comparator. `risk_based` is optional and must be explicitly added if desired.
+**full_escalate**
 
-Run serially with a single writer per output directory. Fresh pipeline/environment/budget per row prevents task contamination. Model context windows and weights must remain stable. Do not use a project spending cap in place of the per-task attention budget; they are different quantities.
+```bash
+python -m src.run_experiments --manifest runs/banking-semantic-v1-pilot-small.csv \
+  --policy full_escalate --output-dir runs/banking-semantic-v1-pilot-small-full_escalate \
+  --all --model qwen3:14b \
+  --attempts 1 --timeout 120 --max-turns 20 --max-tool-calls 80 \
+  --max-tokens 4096 --seed 0 --alpha 0.7 --tau0 0.15 --delta 0.1
+```
 
-## 5. Resume and error protocol
+**hybrid_llm**
 
-To resume an interrupted full run, repeat the **same execution command**, adding `--resume`:
+```bash
+python -m src.run_experiments --manifest runs/banking-semantic-v1-pilot-small.csv \
+  --policy hybrid_llm --output-dir runs/banking-semantic-v1-pilot-small-hybrid_llm \
+  --all --model qwen3:14b \
+  --attempts 1 --timeout 120 --max-turns 20 --max-tool-calls 80 \
+  --max-tokens 4096 --seed 0 --alpha 0.7 --tau0 0.15 --delta 0.1
+```
+
+**hybrid_llm_fixed**
+
+```bash
+python -m src.run_experiments --manifest runs/banking-semantic-v1-pilot-small.csv \
+  --policy hybrid_llm_fixed --output-dir runs/banking-semantic-v1-pilot-small-hybrid_llm_fixed \
+  --all --model qwen3:14b \
+  --attempts 1 --timeout 120 --max-turns 20 --max-tool-calls 80 \
+  --max-tokens 4096 --seed 0 --alpha 0.7 --tau0 0.15 --delta 0.1
+```
+
+After all four small-pilot blocks finish, compare them together:
+
+```bash
+python -m src.banking_report --manifest runs/banking-semantic-v1-pilot-small.csv \
+  --run-dir runs/banking-semantic-v1-pilot-small-full_approve \
+  --run-dir runs/banking-semantic-v1-pilot-small-full_escalate \
+  --run-dir runs/banking-semantic-v1-pilot-small-hybrid_llm \
+  --run-dir runs/banking-semantic-v1-pilot-small-hybrid_llm_fixed \
+  --output-dir runs/analysis-banking-semantic-v1-pilot-small --allow-incomplete
+```
+
+`--allow-incomplete` permits diagnostic exports if a pilot has errors or unfinished episodes. It does not turn incomplete data into final evidence. The shared `--manifest` ensures unrun policy partitions remain visible as missing outcomes.
+
+### Coverage pilot: same development tasks, all attack objectives
+
+If the small pilot is healthy, create the larger shared development manifest:
+
+```bash
+python -m src.experiment_runner --suite banking \
+  --policy full_approve --policy full_escalate --policy hybrid_llm --policy hybrid_llm_fixed \
+  --task user_task_0 --task user_task_1 --task user_task_2 \
+  --k 0 --k 1 --k 3 --k 5 --k 7 --k 9 --repeats 1 \
+  --output runs/banking-semantic-v1-pilot-coverage.csv
+python -m src.run_experiments --manifest runs/banking-semantic-v1-pilot-coverage.csv \
+  --output-dir runs/banking-semantic-v1-pilot-coverage-validation-only --all --validate-only
+```
+
+Each block below runs **180 episodes**: three tasks, ten conditions, six budgets, one repeat. All four together run 720 episodes. These are fresh episodes; they are not appended to or pooled with the smaller pilot.
+
+**full_approve**
+
+```bash
+python -m src.run_experiments --manifest runs/banking-semantic-v1-pilot-coverage.csv \
+  --policy full_approve --output-dir runs/banking-semantic-v1-pilot-coverage-full_approve \
+  --all --model qwen3:14b \
+  --attempts 1 --timeout 120 --max-turns 20 --max-tool-calls 80 \
+  --max-tokens 4096 --seed 0 --alpha 0.7 --tau0 0.15 --delta 0.1
+```
+
+**full_escalate**
+
+```bash
+python -m src.run_experiments --manifest runs/banking-semantic-v1-pilot-coverage.csv \
+  --policy full_escalate --output-dir runs/banking-semantic-v1-pilot-coverage-full_escalate \
+  --all --model qwen3:14b \
+  --attempts 1 --timeout 120 --max-turns 20 --max-tool-calls 80 \
+  --max-tokens 4096 --seed 0 --alpha 0.7 --tau0 0.15 --delta 0.1
+```
+
+**hybrid_llm**
+
+```bash
+python -m src.run_experiments --manifest runs/banking-semantic-v1-pilot-coverage.csv \
+  --policy hybrid_llm --output-dir runs/banking-semantic-v1-pilot-coverage-hybrid_llm \
+  --all --model qwen3:14b \
+  --attempts 1 --timeout 120 --max-turns 20 --max-tool-calls 80 \
+  --max-tokens 4096 --seed 0 --alpha 0.7 --tau0 0.15 --delta 0.1
+```
+
+**hybrid_llm_fixed**
+
+```bash
+python -m src.run_experiments --manifest runs/banking-semantic-v1-pilot-coverage.csv \
+  --policy hybrid_llm_fixed --output-dir runs/banking-semantic-v1-pilot-coverage-hybrid_llm_fixed \
+  --all --model qwen3:14b \
+  --attempts 1 --timeout 120 --max-turns 20 --max-tool-calls 80 \
+  --max-tokens 4096 --seed 0 --alpha 0.7 --tau0 0.15 --delta 0.1
+```
+
+```bash
+python -m src.banking_report --manifest runs/banking-semantic-v1-pilot-coverage.csv \
+  --run-dir runs/banking-semantic-v1-pilot-coverage-full_approve \
+  --run-dir runs/banking-semantic-v1-pilot-coverage-full_escalate \
+  --run-dir runs/banking-semantic-v1-pilot-coverage-hybrid_llm \
+  --run-dir runs/banking-semantic-v1-pilot-coverage-hybrid_llm_fixed \
+  --output-dir runs/analysis-banking-semantic-v1-pilot-coverage --allow-incomplete
+```
+
+Pilot acceptance: inspect missing/error counts, exact reviewer requests (`reviewer_requests.json`) and verdicts, malformed/truncated response rates, `assessor_status.csv`, policy API records and `semantic_decisions.csv`. Confirm actual invocations follow approval and $E_i\le k$. Full-approve review totals must be zero; full-escalate at $k=0$ must not execute review-requiring calls. An `ok` episode may legitimately have utility zero. Invalid/unavailable R4 responses retain the conservative fallback; disclose their rates.
+
+Tune only on development identities. Changing code, prompts, model settings or coefficients requires fresh output directories and rerunning the affected matched pilot. Do not change the model after running one strategy and then compare it against the other strategies under different weights.
+
+## 4. Freeze and execute full banking evaluation as four separate runs
+
+After development, freeze code, prompts, model digest, budget grid, coefficients, episode bounds, attacks and retry protocol. The full manifest contains 16 tasks, one clean condition plus nine fixed `direct` attack objectives, four policies, six budgets and three repeats:
+
+$$N_{\mathrm{all}}=16(1+9)\times4\times6\times3=11520,\qquad
+N_{\mathrm{per\ policy}}=16(1+9)\times6\times3=2880.$$
+
+Each policy run includes **288 clean episodes and 2,592 attacked episodes**. None of the four commands is a single task or single budget. Each runs all 16 tasks, every condition, all six budgets and all three repetitions for its selected strategy.
+
+The full-bank headline is descriptive because three task identities were used for development. The separate held-out analysis excludes those identities, leaving $13(1+9)\times4\times6\times3=9360$ episodes, or 2,340 per policy. Do not call all 16 tasks held out. The attack cohort is fixed, not a verified successful-attack set; some tasks may never encounter an injection surface. Agent repeats use seeds $0$, $1$ and $2$; the reviewer uses fixed seed $0$. These are not independent human judges.
+
+### Create and validate the full shared manifest once
+
+```bash
+python -m src.experiment_runner --suite banking \
+  --policy full_approve --policy full_escalate --policy hybrid_llm --policy hybrid_llm_fixed \
+  --k 0 --k 1 --k 3 --k 5 --k 7 --k 9 --repeats 3 \
+  --output runs/banking-semantic-v1-full.csv
+python -m src.run_experiments --manifest runs/banking-semantic-v1-full.csv \
+  --output-dir runs/banking-semantic-v1-full-validation-only --all --validate-only
+shasum -a 256 runs/banking-semantic-v1-full.csv > runs/provenance/banking-semantic-v1-full-manifest.sha256
+```
+
+### Four independent execution commands
+
+Execute all four blocks once, sequentially. You may inspect/resume one policy without rerunning the others. Each directory stores its own frozen selected `manifest.csv`, `config.json`, `results.jsonl`, and per-episode audit/usage/trajectory files.
+
+**full_approve**
 
 ```bash
 python -m src.run_experiments --manifest runs/banking-semantic-v1-full.csv \
-  --output-dir runs/banking-semantic-v1-full --all --model qwen3:14b \
+  --policy full_approve --output-dir runs/banking-semantic-v1-full-full_approve \
+  --all --model qwen3:14b \
+  --attempts 1 --timeout 120 --max-turns 20 --max-tool-calls 80 \
+  --max-tokens 4096 --seed 0 --alpha 0.7 --tau0 0.15 --delta 0.1
+```
+
+**full_escalate**
+
+```bash
+python -m src.run_experiments --manifest runs/banking-semantic-v1-full.csv \
+  --policy full_escalate --output-dir runs/banking-semantic-v1-full-full_escalate \
+  --all --model qwen3:14b \
+  --attempts 1 --timeout 120 --max-turns 20 --max-tool-calls 80 \
+  --max-tokens 4096 --seed 0 --alpha 0.7 --tau0 0.15 --delta 0.1
+```
+
+**hybrid_llm**
+
+```bash
+python -m src.run_experiments --manifest runs/banking-semantic-v1-full.csv \
+  --policy hybrid_llm --output-dir runs/banking-semantic-v1-full-hybrid_llm \
+  --all --model qwen3:14b \
+  --attempts 1 --timeout 120 --max-turns 20 --max-tool-calls 80 \
+  --max-tokens 4096 --seed 0 --alpha 0.7 --tau0 0.15 --delta 0.1
+```
+
+**hybrid_llm_fixed**
+
+```bash
+python -m src.run_experiments --manifest runs/banking-semantic-v1-full.csv \
+  --policy hybrid_llm_fixed --output-dir runs/banking-semantic-v1-full-hybrid_llm_fixed \
+  --all --model qwen3:14b \
+  --attempts 1 --timeout 120 --max-turns 20 --max-tool-calls 80 \
+  --max-tokens 4096 --seed 0 --alpha 0.7 --tau0 0.15 --delta 0.1
+```
+
+The total remains 11,520 episodes; splitting changes scheduling and output organization, not the experiment. Do not rerun the same episodes as a fifth all-policy command or pool pilots into the full evaluation. If you already completed a valid all-policy run in one directory, the analyzer still accepts that directory alone; a completed study does not need to be repeated merely to split its files.
+
+For the handout's minimum three-strategy study, create a new master manifest explicitly selecting only `full_approve`, `full_escalate`, and `hybrid_llm`, then run those three partitions and analyze those inputs. This has 8,640 episodes. Do not pass an omitted fourth-policy master plan to a three-policy study, since it would correctly report missing comparator episodes. Without the fixed comparator, do not claim evidence for fixed-versus-dynamic allocation benefit.
+
+## 5. Resume and error protocol
+
+To resume one policy, repeat **that policy's exact original execution command**, adding `--resume`. Keep `--policy`, the shared manifest, output directory, model and every setting unchanged. For example, resume only the full dynamic hybrid run:
+
+```bash
+python -m src.run_experiments --manifest runs/banking-semantic-v1-full.csv \
+  --policy hybrid_llm --output-dir runs/banking-semantic-v1-full-hybrid_llm \
+  --all --model qwen3:14b \
   --attempts 1 --timeout 120 --max-turns 20 --max-tool-calls 80 \
   --max-tokens 4096 --seed 0 --alpha 0.7 --tau0 0.15 --delta 0.1 --resume
 ```
 
-Source/configuration/selection differences reject resume. Finished rows are not replayed, and an interrupted episode directory without a final result is recorded as an error with uncertain effects. Existing error results are preserved, not automatically retried. CLI exit status is nonzero if selected episodes have errors. Planning protects existing files unless `--overwrite` is explicitly supplied.
+For the other three policies, copy their corresponding block in §4 and append `--resume`. Do not switch policy flags while retaining another policy's directory. Source/configuration/selection changes reject resume. Completed episodes are skipped; an interrupted episode directory lacking a final result becomes an error with uncertain effects. Existing error results are preserved, not automatically retried. CLI exit status is nonzero if the selected policy has errored episodes.
 
-Do not delete failed episodes or append selected favorable retries to the original aggregate. After fixing an infrastructure problem, use a fresh run directory for a consistently repeated frozen cohort and disclose both attempts, error counts and selection protocol. If the frozen protocol permits bounded retries, apply it equally to all matched policies and record every attempt. Unknown outcomes retain their coverage bounds.
+Run each directory with only one writer. After an infrastructure repair, apply the frozen retry protocol consistently across matched policies, record every attempt, and use fresh directories when source/settings change. Do not delete failures, append favorable retries, or include two copies of an episode in comparison. Unknown outcomes retain coverage bounds. The combined analyzer rejects overlapping episode IDs and different source/prompt/model/runtime configurations.
 
-## 6. Export all report data and charts
+## 6. Compare the four result directories together
+
+The analyzer now accepts repeated `--run-dir` arguments. It reads raw evidence directly from each source directory and produces one common set of tables and curves. It does not concatenate or copy raw logs, overwrite source evidence, execute episodes, or call a model.
+
+### Full four-policy comparison
 
 ```bash
-python -m src.r3_compare --manifest runs/banking-semantic-v1-full/manifest.csv \
-  --results runs/banking-semantic-v1-full/results.jsonl \
-  --output runs/analysis-banking-semantic-v1-full-validation.json
-python -m src.banking_report --run-dir runs/banking-semantic-v1-full \
+python -m src.banking_report --manifest runs/banking-semantic-v1-full.csv \
+  --run-dir runs/banking-semantic-v1-full-full_approve \
+  --run-dir runs/banking-semantic-v1-full-full_escalate \
+  --run-dir runs/banking-semantic-v1-full-hybrid_llm \
+  --run-dir runs/banking-semantic-v1-full-hybrid_llm_fixed \
   --output-dir runs/analysis-banking-semantic-v1-full
-python -m src.banking_report --run-dir runs/banking-semantic-v1-full \
+```
+
+### Held-out four-policy comparison
+
+This uses the same full-run evidence and excludes development task identities during analysis; it does not execute another benchmark.
+
+```bash
+python -m src.banking_report --manifest runs/banking-semantic-v1-full.csv \
+  --run-dir runs/banking-semantic-v1-full-full_approve \
+  --run-dir runs/banking-semantic-v1-full-full_escalate \
+  --run-dir runs/banking-semantic-v1-full-hybrid_llm \
+  --run-dir runs/banking-semantic-v1-full-hybrid_llm_fixed \
   --exclude-task user_task_0 --exclude-task user_task_1 --exclude-task user_task_2 \
   --output-dir runs/analysis-banking-semantic-v1-heldout
 ```
 
-`r3_compare` independently validates identities, outcomes, actual execution audits and budgets. `banking_report` uses that validator and directly consumes native runner logs; it never reads legacy R5 logs as if they were connected results. Its default nonzero exit means errors/missing episodes/audit issues or unmatched/inadequate comparison cohorts remain. `--allow-incomplete` is for diagnostic exports and does not turn incomplete data into final evidence. The analysis directory must sit outside the immutable run directory.
+The combined analyzer validates each source against its own frozen selection, checks disjoint episode IDs, and requires identical native live `config.json` contents except the policy-specific episode-ID list. That comparison covers model/endpoint, limits, seed, policy settings, semantic version and source/prompt fingerprints. Each selected row must match the common master manifest. Verify the captured full model-weight digest manually as well, because the runner's automatic digest field remains empty.
+
+The master manifest determines the expected full cohort. An unfinished strategy or missing result stays scheduled and missing; the comparison cannot silently shrink to only completed policies. `summary.json` records `source_runs` with paths, counts and configuration hashes. Do not pass a parent `runs/` directory, mix pilot/full directories, or combine a retry with the original copy of the same episode.
+
+### Inspect one policy while the other runs are unfinished
+
+```bash
+python -m src.banking_report --manifest runs/banking-semantic-v1-full.csv \
+  --run-dir runs/banking-semantic-v1-full-full_approve \
+  --output-dir runs/analysis-banking-semantic-v1-progress-full_approve --allow-incomplete
+```
+
+This is a progress export: the other three policies are missing relative to the master plan. For final report evidence, rerun the full four-input comparison without `--allow-incomplete` after all strategies finish. You can also analyze one directory without `--manifest` for a single-policy diagnostic, but that does not establish a complete matched study.
+
+For an independent numerical check of an individual partition, the existing comparator remains available:
+
+```bash
+python -m src.r3_compare \
+  --manifest runs/banking-semantic-v1-full-full_approve/manifest.csv \
+  --results runs/banking-semantic-v1-full-full_approve/results.jsonl \
+  --output runs/analysis-banking-semantic-v1-full-approve-validation.json
+```
+
+Default analysis exits nonzero if coverage, audit validity, required strategy matching or the project budget grid is incomplete. `--allow-incomplete` permits diagnostic output without asserting readiness. Analysis output must be outside every immutable input run directory. Previously documented single-directory analysis remains supported.
 
 Outputs include:
 
@@ -318,4 +617,4 @@ Suggested five-page structure: objective/related work (0.5), policy/gate/reviewe
 
 Suggested presentation timing: problem and scope (1 minute), diagrams/policy (2), gate/reviewer isolation (1), matched results and cost (3), failures/escalation value (2), conclusions (1). Prepare answers on exhausted budgets, oracle isolation, source-data attacks, the TCR proxy, R4 conflict errors and independent-review boundaries, repeat dependence and generalization beyond banking.
 
-Preserve the frozen manifest, config, full model digest, dependency lock, raw results, audit/usage, curated examples, plots, report and slides in the GitHub submission or a documented accessible artifact location. `runs/` is ignored; copy publishable evidence into `deliverables/banking/` rather than assuming local runs were submitted. Keep credentials out of provenance and shared patches. Include this guide, source version and one exact reproduction command. Before submission, rerun offline tests and confirm all required tables/figures trace to the frozen cohort. A report should state measured results even when the original policy does not outperform the baselines.
+Preserve the frozen manifest, config, full model digest, dependency lock, raw results, audit/usage, curated examples, plots, report and slides in the GitHub submission or a documented accessible artifact location. `runs/` is now eligible for Git tracking, including nested harness runs. Add intended frozen runs explicitly and use `deliverables/banking/` for curated report assets; removing an ignore rule does not stage, commit, or submit files. Keep credentials out of provenance and shared patches. Include this guide, source version and one exact reproduction command. Before submission, rerun offline tests and confirm all required tables/figures trace to the frozen cohort. A report should state measured results even when the original policy does not outperform the baselines.

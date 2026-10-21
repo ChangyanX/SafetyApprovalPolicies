@@ -8,7 +8,7 @@ Start with the [banking evaluation and submission guide](docs/BANKING_EVALUATION
 
 ## Status
 
-The merged code needed repairs before full evaluation: default experiment selection omitted the original policy, R4 was not wired into the live executor, R5 analysis consumed incompatible logs, and repeated-call suppression altered the full-escalate baseline. These discrepancies are repaired. Live pilot validation remains necessary: the local Ollama endpoint was unavailable during the audit. No measured policy improvement, complete model evaluation, finished report or presentation is claimed.
+The banking evaluation workflow is implemented and offline-validated: connected gate, required baselines, combined R3/R4 policies, separate policy runs and matched comparison exports. Latest validation: 233 harness tests passed and one opt-in live test skipped. Run model preflight and current-version development pilots before the full evaluation. The latest model availability check from this session could not reach the local Ollama endpoint; verify it in the experiment terminal. Empirical conclusions require the completed matched evaluation and inspected trajectories.
 
 The required policies are full-approve, full-escalate, and our scope-aware policy. The CLI now defaults to banking with both baselines, `hybrid_llm`, and its fixed allocation comparator. Metadata-only and explicit stub variants remain available. Other domains remain supported by shared library code and regression tests, but are outside this study.
 
@@ -51,7 +51,7 @@ python -m src.run_experiments --manifest runs/banking-plan.csv \
   --output-dir runs/banking-evaluation --all --validate-only
 ```
 
-Planning/validation make no model calls. Use the guide's matched pilot before its full evaluation commands. Always use `--all` for frozen comparisons; the executor otherwise selects its first 10 rows. `runs/` is ignored by Git, so publish curated artifacts explicitly.
+Planning/validation make no model calls. Use the guide's matched pilot before its full evaluation commands. Always use `--all` for frozen comparisons; the executor otherwise selects its first 10 rows. `runs/` is eligible for Git tracking so frozen experiment evidence can be submitted. Add the intended run directories explicitly; removing the ignore rule does not stage or commit them. Credentials and local environments remain ignored.
 
 ## Source precedence
 

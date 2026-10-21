@@ -6,13 +6,13 @@ Date: 21 October 2026. Scope: the merged repository, its connected execution pat
 
 The current user-confirmed grid is $k\in\{0,1,3,5,7,9\}$. Planner defaults, pilots, full-run commands, synthetic demo artifacts and the legacy pending-only plan now use this grid. Existing frozen evaluation results remain unchanged. The updated four-policy banking sweep has $16(1+9)\times4\times6\times3=11520$ episodes; its held-out subset has $13(1+9)\times4\times6\times3=9360$ episodes. The updated 11,520-row banking manifest was generated and every row passed offline validation; all 194 harness tests passed (one opt-in live test skipped). The refreshed synthetic artifacts contain 180 cells, and the pending-only legacy manifest contains 2,592 rows with its original schema. The earlier 9,600-row validation below records the original audit, not the new experiment size.
 
-## Verdict
+## Current readiness
 
-**Before fixes:** not ready for trustworthy full evaluation or automatic generation of the handout evidence.
+**The code is ready for the documented banking evaluation workflow.** Integration and multi-directory reporting are implemented. Latest validation: **233 harness tests passed, 1 opt-in live model test skipped, 30 subtests passed**. The historical discrepancy table below is retained as an audit record of resolved issues, not a list of outstanding blockers.
 
-**After fixes:** offline integration is validated and a reproducible banking evaluation/export path exists. Ready to attempt the live pilot; full-run promotion remains conditional on that pilot. The local Ollama endpoint did not respond during this review. No live Qwen benchmark, final experimental claim, finished report or presentation is asserted.
+Run preflight and the current-version development pilot before promoting to the full evaluation. The latest `--check` call from this session could not reach the configured local Ollama endpoint. The repository contains an earlier 72-episode live pilot with all episode statuses `ok`, but those records have no semantic-policy version field and therefore do not validate the current decision-effective R3/R4 implementation. The offline smoke has 10 successful scripted episodes and remains engineering evidence only.
 
-The user confirmed local `qwen3:14b` for agent, assessor and reviewer. All three use separate requests/contexts. Shared model weights can cause correlated failures.
+The user selected local `qwen3:14b` for agent, assessor and reviewer in separate contexts. Shared model weights can cause correlated failures. Current-version empirical results and confirmed trajectories remain necessary for report conclusions.
 
 ## Decision-effective integration update
 
@@ -68,6 +68,6 @@ Exact setup, tests, smoke, manifest generation, live preflight, pilots, full swe
 7. **Empirical deliverables:** full model results, genuine curves, confirmed representative failures, causal/qualitative escalation-value discussion, report and presentation are still to be produced. Machine completeness checks are necessary but do not certify a finished submission.
 8. **Manual failure classification:** an attack following reviewer approval must not automatically be called an auto-approval policy false negative. A utility failure alone does not prove over-conservatism. Confirm decisive calls from trajectories; do not invent examples to fill the handout categories.
 9. **Local API accounting:** zero API dollars excludes compute/electricity. Report tokens, unknown token counts and component inference overhead. R4 has a single attempt; agent/reviewer default to one transport attempt, with at most one reviewer formatting repair per consultation.
-10. **Submission packaging:** `runs/` is ignored by Git. Preserve full audit/provenance and copy publishable results, figures, curated cases, report and slides into the submitted artifact tree. Old local traces and historical R3 documents are not evidence of the new frozen run.
+10. **Submission packaging:** the blanket `runs/` ignore rule has been removed so intended benchmark evidence can be tracked. Removing it does not stage or commit files. Preserve full audit/provenance and copy publishable results, figures, curated cases, report and slides into the submitted artifact tree. Old local traces and historical R3 documents are not evidence of the new frozen run.
 
 No push, PR, live full evaluation or external publication was performed by this audit.

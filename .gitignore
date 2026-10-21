@@ -217,8 +217,7 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 
-# Local credentials and benchmark traces
+# Local credentials and platform files
 .env.*
 !.env.example
-runs/
 .DS_Store

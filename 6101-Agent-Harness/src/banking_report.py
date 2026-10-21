@@ -6,6 +6,7 @@ Failure candidates require human inspection; no per-call safety labels are inven
 import argparse
 from collections import defaultdict
 import csv
+import hashlib
 import json
 from pathlib import Path
 
@@ -29,14 +30,57 @@ def write_csv(path, rows):
 
 
 def analyze(run_dir, output_dir, *, exclude_tasks=None):
-    run_dir, output_dir = Path(run_dir).resolve(), Path(output_dir).resolve()
-    if run_dir == output_dir or run_dir in output_dir.parents:
+    """Backwards-compatible single-run analysis."""
+    return analyze_runs([run_dir], output_dir, exclude_tasks=exclude_tasks)
+
+
+def analyze_runs(run_dirs, output_dir, *, exclude_tasks=None, master_manifest=None):
+    """Compare disjoint run partitions without copying or modifying raw evidence."""
+    roots = [Path(root).resolve() for root in run_dirs]
+    output_dir = Path(output_dir).resolve()
+    if not roots or len(set(roots)) != len(roots):
+        raise ValueError('Run directories must be nonempty and distinct')
+    if any(root == output_dir or root in output_dir.parents for root in roots):
         raise ValueError('Analysis output must be outside the immutable run directory')
-    with (run_dir/'manifest.csv').open(encoding='utf-8-sig', newline='') as file:
-        manifest = list(csv.DictReader(file))
-    if not manifest or {r['suite'] for r in manifest} != {'banking'}:
-        raise ValueError('A nonempty banking-only frozen manifest is required')
-    results = read_jsonl(run_dir/'results.jsonl')
+    manifest, results, episode_roots, sources = [], [], {}, []
+    shared_config = None
+    for root in roots:
+        with (root/'manifest.csv').open(encoding='utf-8-sig', newline='') as file:
+            rows = list(csv.DictReader(file))
+        if not rows or {r['suite'] for r in rows} != {'banking'}:
+            raise ValueError('A nonempty banking-only frozen manifest is required')
+        records = read_jsonl(root/'results.jsonl')
+        compare(rows, records)  # Bind each source's records to its own frozen selection.
+        for row in rows:
+            if row['episode_id'] in episode_roots:
+                raise ValueError('Overlapping episode IDs across input runs; do not double-count retries')
+            episode_roots[row['episode_id']] = root
+        config_path = root/'config.json'
+        config = json.loads(config_path.read_text()) if config_path.exists() else None
+        if len(roots) > 1:
+            if not isinstance(config, dict) or config.get('mode') != 'live':
+                raise ValueError('Combined runs require native live config.json provenance')
+            if config.get('episode_ids') != [r['episode_id'] for r in rows]:
+                raise ValueError('Source configuration episode IDs disagree with its frozen manifest')
+            normalized = {key:value for key,value in config.items() if key != 'episode_ids'}
+            if shared_config is not None and normalized != shared_config:
+                raise ValueError('Input model/runtime/source/prompt/policy configurations differ')
+            shared_config = normalized
+        sources.append(dict(run_dir=str(root), planned=len(rows), observed=len(records),
+            config_sha256=hashlib.sha256(config_path.read_bytes()).hexdigest() if config else None))
+        manifest.extend(rows); results.extend(records)
+    if master_manifest is not None:
+        master_manifest = Path(master_manifest).resolve()
+        with master_manifest.open(encoding='utf-8-sig', newline='') as file:
+            expected = list(csv.DictReader(file))
+        if not expected or {r['suite'] for r in expected} != {'banking'}:
+            raise ValueError('A nonempty banking-only master manifest is required')
+        planned = {r['episode_id']:r for r in expected}
+        if len(planned) != len(expected):
+            raise ValueError('Duplicate master manifest episode IDs')
+        if any(row != planned.get(row['episode_id']) for row in manifest):
+            raise ValueError('Input run selections disagree with the master manifest')
+        manifest = expected  # Unrun partitions remain scheduled missing outcomes.
     report = compare(manifest, results)
     if exclude_tasks:
         unknown = set(exclude_tasks) - {r['user_task_id'] for r in manifest}
@@ -49,6 +93,8 @@ def analyze(run_dir, output_dir, *, exclude_tasks=None):
         results = [r for r in results if r['episode_id'] in ids]
         report = compare(manifest, results)
     report['excluded_user_tasks'] = sorted(exclude_tasks or [])
+    report['source_runs'] = sources
+    report['master_manifest'] = str(master_manifest) if master_manifest is not None else None
     observed = {r['episode_id']: r for r in results}
     issues, candidates, reviews, cost_rows, assessor_rows = [], [], [], [], []
     semantic_rows = []
@@ -62,7 +108,7 @@ def analyze(run_dir, output_dir, *, exclude_tasks=None):
                 result.get('policy_version') != SEMANTIC_POLICY_VERSION
                 or result.get('assessment_mode') != 'review_selection'):
             issues.append(f'{eid}: old or missing semantic policy identity; run a fresh versioned cohort')
-        folder = run_dir/'episodes'/eid
+        folder = episode_roots[eid]/'episodes'/eid
         events = read_jsonl(folder/'audit.jsonl')
         usage = [u for u in read_jsonl(folder/'usage.jsonl')
                  if u.get('record_type') == 'api_attempt']
@@ -253,12 +299,13 @@ def plot(groups, costs, out):
 
 def main(argv=None):
     parser=argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--run-dir',type=Path,required=True)
+    parser.add_argument('--run-dir',type=Path,required=True,action='append',help='Repeat for separate matched policy runs')
+    parser.add_argument('--manifest',type=Path,help='Frozen master plan; omitted partitions remain missing')
     parser.add_argument('--output-dir',type=Path,required=True)
     parser.add_argument('--allow-incomplete',action='store_true',help='Export diagnostic pilot/error results with exit code zero')
     parser.add_argument('--exclude-task', action='append', default=[], help='Exclude development identities from a held-out analysis')
     args=parser.parse_args(argv)
-    report=analyze(args.run_dir,args.output_dir,exclude_tasks=args.exclude_task)
+    report=analyze_runs(args.run_dir,args.output_dir,exclude_tasks=args.exclude_task,master_manifest=args.manifest)
     print(f"Complete: {report['complete']}; comparison ready: {report['comparison_ready']}; groups: {len(report['groups'])}; audit issues: {len(report['audit_issues'])}")
     return 0 if (report['complete'] and report['comparison_ready']) or args.allow_incomplete else 2
 
