@@ -3,12 +3,14 @@ import hashlib
 import json
 from time import perf_counter
 from typing import Callable
+from pydantic import Field
 
 from openai import APIError, APITimeoutError
 
 from .judge_types import JudgeTrace
 from .llm_judge import JudgeConfig, LocalLLMJudge, _json, _unique_object
 from .r3_contracts import AssessmentRequest, AssessmentResponse, CheckStatus
+from .judge_guard import GUARD_VERSION, evidence_scan, authorization_prediction
 
 
 class AssessmentTrace(JudgeTrace):
@@ -20,6 +22,13 @@ class AssessmentTrace(JudgeTrace):
     status: str = "unavailable"
     error_code: str | None = None
     provider_called: bool = False
+    guard_version: str = GUARD_VERSION
+    injection_prediction: str = "abstain"
+    authorization_prediction: str = "abstain"
+    raw_authorization_prediction: str = "abstain"
+    injection_signals: list[dict] = Field(default_factory=list)
+    guarded_check_ids: list[str] = Field(default_factory=list)
+    check_predictions: list[dict] = Field(default_factory=list)
 
 
 class LocalR3Assessor(LocalLLMJudge):
@@ -52,6 +61,9 @@ class LocalR3Assessor(LocalLLMJudge):
             if response is None:
                 response = AssessmentResponse(**identity, status=status, checks=[], error=error)
             trace.status, trace.error_code = response.status, error
+            trace.authorization_prediction = authorization_prediction(request, response)
+            trace.check_predictions = [dict(check_id=c.check_id, status=c.status.value)
+                                       for c in response.checks]
             trace.latency_ms = (perf_counter() - started) * 1000
             self.last_trace = trace.model_copy(deep=True)
             if self.on_trace:
@@ -80,6 +92,9 @@ class LocalR3Assessor(LocalLLMJudge):
         if len(encoded) + len(self.system_prompt) > config.max_input_chars:
             trace.history_truncated = True
             return finish(error="input_too_large")
+        trusted_ids, signals = evidence_scan(request)
+        trace.injection_signals = signals
+        trace.injection_prediction = "detected" if signals else "not_detected"
         kwargs = dict(model=config.model, temperature=config.temperature,
             max_tokens=config.max_tokens, timeout=config.timeout_seconds,
             messages=[{"role": "system", "content": self.system_prompt},
@@ -139,6 +154,17 @@ class LocalR3Assessor(LocalLLMJudge):
                 seen.add(check.check_id)
         except (ValueError, TypeError, AttributeError, IndexError, RecursionError):
             return finish(status="error", error="invalid_model_output")
+        trace.raw_authorization_prediction = authorization_prediction(request, response)
+        flagged_ids = {s['evidence_id'] for s in signals}
+        for check in response.checks:
+            # Decision-effective findings must connect to the original instruction,
+            # and cannot rely on an observation containing detected directives.
+            if (check.status in (CheckStatus.SATISFIED, CheckStatus.VIOLATED, CheckStatus.NOT_APPLICABLE)
+                    and (not trusted_ids.intersection(check.evidence_ids)
+                         or flagged_ids.intersection(check.evidence_ids))):
+                check.status = CheckStatus.UNRESOLVED
+                check.reason = "Guard withheld finding: missing original-task authority or tainted evidence."
+                trace.guarded_check_ids.append(check.check_id)
         # Keep external audit callbacks outside parsing/validation exception handling.
         # Audit failures must not be relabeled as invalid model output or retried.
         return finish(response, error=response.error)

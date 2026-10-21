@@ -11,6 +11,7 @@ from pydantic import Field, ValidationError
 
 from .judge_types import JudgeInput, JudgeResult, JudgeTrace, RiskAssessment, StrictModel
 from .types import GateInput
+from .judge_guard import indicators
 
 
 class JudgeConfig(StrictModel):
@@ -94,6 +95,7 @@ class LocalLLMJudge:
                 return result("insufficient_context")
         except (ValueError, TypeError, RecursionError):
             return result("insufficient_context")
+        trace.injection_guard_triggered = bool(indicators(value.trajectory))
         kwargs = dict(model=config.model, temperature=config.temperature,
                       max_tokens=config.max_tokens, timeout=config.timeout_seconds,
                       messages=[{"role": "system", "content": self.system_prompt},
@@ -126,6 +128,13 @@ class LocalLLMJudge:
             assessment = RiskAssessment.model_validate(parsed)
         except (ValueError, TypeError, IndexError, AttributeError, RecursionError, ValidationError):
             return result("invalid_output")
+        if trace.injection_guard_triggered:
+            assessment.injection_suspected = True
+            if assessment.authorization == "authorized":
+                # This standalone schema has no provenance citations to validate.
+                assessment.authorization = "uncertain"
+                assessment.context_sufficient = False
+                assessment.rationale = "Injection indicators found; positive authorization requires independent trusted evidence."
         if (not assessment.context_sufficient or assessment.authorization == "uncertain"
                 or assessment.operational_risk == "unknown"):
             return result("insufficient_context", assessment)

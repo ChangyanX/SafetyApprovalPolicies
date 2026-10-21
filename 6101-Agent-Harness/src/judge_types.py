@@ -45,6 +45,7 @@ class JudgeTrace(StrictModel):
     completion_tokens: int | None = None
     total_tokens: int | None = None
     history_truncated: bool = False
+    injection_guard_triggered: bool = False
 
 
 class JudgeResult(StrictModel):
