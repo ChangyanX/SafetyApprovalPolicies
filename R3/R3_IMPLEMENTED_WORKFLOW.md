@@ -208,3 +208,8 @@ From `6101-Agent-Harness`, run `../.venv/bin/python -B -m src.r3_artifacts --ove
 ## Connection verification
 
 The connected runtime passed 15 dedicated integration tests plus 40 offline smoke episodes spanning clean/attacked conditions, all four suites and five policies. The smoke actors are scripted and marked `offline_test`; the comparator rejects them as model evidence. AgentDojo evaluates an execution-only projection, while the complete proposal/denial transcript remains in the audit. See the execution guide for this scoring distinction and strict shared argument validation.
+
+
+## 21 October v2 development revision
+
+See [matched rerun v2](MATCHED_RERUN_V2.md) for the prerequisite grants, review-relevance changes, explicit allocation settings, runtime preflight and fresh clean/attacked commands. The v1 outcomes remain preserved. Bounded multi-step banking templates extend the original whole-task literal support; R4 remains advisory. Scope permissions still originate only in the original task.

@@ -128,3 +128,8 @@ Explain: problem → scope checks → review selection → benchmark comparison 
 Remaining contracts and pre-pilot decisions are listed in the [decision register](PROJECT_DECISION_REGISTER.md). The old internal October freeze dates are targets, not evidence that integration has passed. Official deadline and format details remain unconfirmed.
 
 Execution update: [the connected runner](RUNNING_GATED_BENCHMARK.md) consumes existing manifests. Four-suite clean/attacked offline integration passed; live model validation remains outstanding.
+
+
+## 21 October development revision
+
+Follow [Matched development rerun v2](MATCHED_RERUN_V2.md). V1 produced no known completions and 15 API timeouts per condition; it does not demonstrate policy improvement. V2 adds bounded exact read prerequisites, task-derived review relevance, a declared delta=0.05 experiment, shared tool-use guidance and a 300-second diagnostic request timeout. Require a successful live clean preflight before the matched 120-episode development cohort. Keep v1 immutable, compare policies within v2, and reserve held-out tasks for final claims. R4 remains advisory; bounded templates do not establish general semantic scope extraction.

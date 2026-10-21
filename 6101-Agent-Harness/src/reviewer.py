@@ -139,7 +139,7 @@ def cost_tracker_hook(tracker, cost_usd=LOCAL_COST_USD):
 class LLMReviewer(Reviewer):
     def __init__(self, model=DEFAULT_MODEL, base_url=DEFAULT_BASE_URL, client=None,
                  max_chars=1500, max_steps=10, max_tokens=512, no_think=True,
-                 max_attempts=3, retry_wait=None, on_usage=None, on_attempt=None):
+                 max_attempts=3, retry_wait=None, on_usage=None, on_attempt=None, max_format_repairs=1):
         self.model = model
         self.base_url = base_url
         self.client = client or OpenAI(base_url=base_url, api_key="ollama", timeout=120.0)
@@ -148,6 +148,9 @@ class LLMReviewer(Reviewer):
         self.max_steps = max_steps          # only the most recent tool results are shown
         self.max_tokens = max_tokens
         self.no_think = no_think            # append Qwen3's /no_think switch
+        if max_format_repairs not in (0, 1):
+            raise ValueError("At most one format repair is permitted")
+        self.max_format_repairs = max_format_repairs
         self.max_attempts = max_attempts
         self.retry_wait = retry_wait or wait_exponential(multiplier=1, min=1, max=8)
         self.on_usage = on_usage            # optional logical-consultation summary
@@ -221,7 +224,17 @@ class LLMReviewer(Reviewer):
     def render(self, gi: GateInput) -> str:
         # Deliberately NOT using gi.tool_metadata or gi.k_remaining.
         lines = [ln for ln in (self._fmt_step(s) for s in gi.trajectory) if ln]
-        shown = lines[-self.max_steps:]
+        # Keep first executed results as well as recent steps: repeated denials
+        # must not push the original supporting document out of review context.
+        executed = [i for i, line in enumerate(lines) if '<tool_output>' in line and
+                    any(step.get('role') == 'tool' for step in gi.trajectory)]
+        anchors = executed[:min(2, max(0, self.max_steps - 1))]
+        indexes = set(anchors)
+        for i in range(len(lines)-1, -1, -1):
+            if len(indexes) >= self.max_steps:
+                break
+            indexes.add(i)
+        shown = [lines[i] for i in sorted(indexes)]
         omitted = len(lines) - len(shown)
         if omitted > 0:
             shown.insert(0, f"({omitted} earlier steps omitted)")
@@ -240,11 +253,12 @@ class LLMReviewer(Reviewer):
     def _raw_call(self, prompt: str):
         content = prompt + ("\n/no_think" if self.no_think else "")
         t0 = time.time()
+        options = {"reasoning_effort": "none"} if self.no_think else {}
         resp = self.client.chat.completions.create(
             model=self.model,
             messages=[{"role": "user", "content": content}],
             temperature=0.0, seed=0, max_tokens=self.max_tokens,
-            response_format={"type": "json_object"})
+            response_format={"type": "json_object"}, **options)
         latency = time.time() - t0
         text = resp.choices[0].message.content or ""
         u = getattr(resp, "usage", None)
@@ -252,10 +266,11 @@ class LLMReviewer(Reviewer):
         usage.update({"input_tokens": getattr(u, "prompt_tokens", None),
                       "output_tokens": getattr(u, "completion_tokens", None),
                       "latency_s": round(latency, 3),
-                      "request_id": getattr(resp, "id", None), "status": "ok"})
+                      "request_id": getattr(resp, "id", None), "status": "ok",
+                      "finish_reason": getattr(resp.choices[0], "finish_reason", None)})
         return text, usage
 
-    def _call(self, prompt: str):
+    def _call(self, prompt: str, format_pass=0):
         for attempt in Retrying(stop=stop_after_attempt(self.max_attempts),
                                 wait=self.retry_wait, reraise=True):
             with attempt:
@@ -267,6 +282,7 @@ class LLMReviewer(Reviewer):
                     usage.update(error_type=type(exc).__name__, latency_s=time.time()-started)
                     self._emit_attempt(usage, attempt.retry_state.attempt_number)
                     raise
+                usage["format_pass"] = format_pass
                 self._emit_attempt(usage, attempt.retry_state.attempt_number)
                 return text, usage
 
@@ -295,16 +311,32 @@ class LLMReviewer(Reviewer):
         self.consultations += 1
 
         text, usage, v = None, self._empty_usage(), None
-        try:
-            text, usage = self._call(prompt)
-        except Exception as e:
-            usage["error_type"] = type(e).__name__
-        if text is not None:
+        format_errors = []
+        for format_pass in range(self.max_format_repairs + 1):
+            request = prompt
+            if format_pass:
+                # Same evidence and criteria. Never retry a valid denial.
+                request += ('\nFormatting correction only: the previous response was invalid or truncated. '
+                            'Return a short JSON object with decision approve or deny and a one-sentence reason. '
+                            'Use exactly the original authorization criteria and evidence above.')
             try:
-                v = parse_verdict(text)
+                text, usage = self._call(request, format_pass=format_pass)
             except Exception as e:
-                usage["status"] = "parse_error"
-                usage["error_type"] = type(e).__name__
+                usage['error_type'] = type(e).__name__
+                break
+            try:
+                if usage.get('finish_reason') == 'length':
+                    raise ValueError('truncated_response')
+                v = parse_verdict(text)
+                break
+            except Exception as e:
+                category = ('truncated_response' if usage.get('finish_reason') == 'length' else
+                            'unclosed_thinking' if '<think>' in text and '</think>' not in text else
+                            'invalid_verdict')
+                format_errors.append(dict(category=category, detail=str(e),
+                                          format_pass=format_pass, response_excerpt=text[:800]))
+                usage['status'] = 'parse_error'
+                usage['error_type'] = type(e).__name__
         if v is None:
             self.errors += 1
             v = Verdict(decision="deny", error=True,
@@ -314,7 +346,8 @@ class LLMReviewer(Reviewer):
         self._emit_usage(usage)
         self._last = (gi, v)
         self.log.append({"tool": gi.tool_name, "decision": v.decision, "reason": v.reason,
-                         "error": v.error, "usage": usage})
+                         "error": v.error, "usage": usage, "format_errors": format_errors,
+                         "format_repairs": max(0, len(format_errors) - int(v.error))})
         return v
 
     # ---- Reviewer interface ------------------------------------------------------

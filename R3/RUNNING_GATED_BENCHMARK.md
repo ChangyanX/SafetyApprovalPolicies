@@ -1,8 +1,10 @@
 # Run the connected R3 and baseline benchmark
 
-Updated 20 October 2026. The execution connection is now implemented. `src.experiment_runner` remains the **planner**; `src.run_experiments` **executes** selected rows. They share the existing manifest, so you do not need to generate it again.
+The execution connection is now implemented. `src.experiment_runner` remains the **planner**; `src.run_experiments` **executes** selected rows. They share the existing manifest, so you do not need to generate it again.
 
 The connected factory is in [pipeline.py](../6101-Agent-Harness/src/pipeline.py), the repeated gate/executor in [gated_runtime.py](../6101-Agent-Harness/src/gated_runtime.py), and the executable driver in [run_experiments.py](../6101-Agent-Harness/src/run_experiments.py). The older standalone `GateElement` is a legacy fixture, not the live execution path.
+
+**Latest rerun protocol:** follow [Matched development rerun v2](MATCHED_RERUN_V2.md) after the v1 zero-completion/timeouts. It adds a mandatory live preflight, bounded prerequisite support, explicit lower scarcity penalty and fresh matched output directories. The older commands below remain the v1 protocol; do not use them to overwrite completed runs.
 
 ## What is connected
 

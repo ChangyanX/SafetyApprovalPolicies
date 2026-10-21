@@ -37,7 +37,9 @@ class OllamaToolAgent(BasePipelineElement):
                     max_tokens=self.max_tokens,extra_body={'think':False})
             except Exception as exc:
                 event=dict(component='agent',model=self.model,status='error',attempt=attempt,
-                    latency_s=time.monotonic()-start,error=type(exc).__name__,input_tokens=None,output_tokens=None)
+                    latency_s=time.monotonic()-start,error=type(exc).__name__,input_tokens=None,output_tokens=None,
+                    message_count=len(wire), tool_result_count=sum(m['role']=='tool' for m in wire),
+                    request_chars=len(json.dumps(dict(messages=wire,tools=tools))))
                 self.usage.append(event)
                 if self.on_usage:self.on_usage(deepcopy(event))
                 if attempt==self.attempts:raise

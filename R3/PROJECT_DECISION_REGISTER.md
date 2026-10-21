@@ -118,3 +118,8 @@ Additional regression verification for this implementation: 31 legacy zero-argum
 ## 9. Connected execution status
 
 `src.run_experiments` executes selected manifest rows through the shared gated runtime and official evaluator, with durable traces, reviewer/agent usage and resume between episodes. R4 remains a stub. Verification: 15 dedicated integration tests and 40 all-suite clean/attacked scripted smoke episodes passed. Ollama was unreachable, so no live Qwen benchmark result is claimed. [Commands and output contract](RUNNING_GATED_BENCHMARK.md).
+
+
+## 21 October development revision
+
+Follow [Matched development rerun v2](MATCHED_RERUN_V2.md). V1 produced no known completions and 15 API timeouts per condition; it does not demonstrate policy improvement. V2 adds bounded exact read prerequisites, task-derived review relevance, a declared delta=0.05 experiment, shared tool-use guidance and a 300-second diagnostic request timeout. Require a successful live clean preflight before the matched 120-episode development cohort. Keep v1 immutable, compare policies within v2, and reserve held-out tasks for final claims. R4 remains advisory; bounded templates do not establish general semantic scope extraction.

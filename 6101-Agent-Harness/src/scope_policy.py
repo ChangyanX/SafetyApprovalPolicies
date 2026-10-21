@@ -18,7 +18,8 @@ from .r3_contracts import (AssessmentRequest, AssessmentResponse, Check, CheckSt
                            Evidence, StubAssessor)
 from .tool_risk import load_tool_risk_metadata, risk_for
 from .types import Decision, GateInput, GateOutput, Policy
-from .literal_scope import literal_action
+from .literal_scope import literal_action, task_prerequisites
+from .rent_binding import rent_update_binding
 
 
 def canonical(value):
@@ -45,6 +46,8 @@ class EpisodeState:
     task: str
     grants: list[dict] | None
     scope_error: str | None = None
+    prerequisite_grants: list = field(default_factory=list)
+    relevant_tools: set = field(default_factory=set)
     evidence: dict = field(default_factory=dict)
     proposals: dict = field(default_factory=dict)
     decisions: list = field(default_factory=list)
@@ -115,6 +118,14 @@ class ScopeAwarePolicy(Policy):
                                tool=literal['tool'], args=normalized, max_executions=1)]
         self._used_episodes.add(episode_id)
         self._state = EpisodeState(episode_id, suite, task, grants, error)
+        if grants is None and error is None:
+            prerequisites, relevant = task_prerequisites(suite, task)
+            self._state.relevant_tools = relevant
+            for index, action in enumerate(prerequisites):
+                normalized = self._validated_args(suite, action['tool'], action['args'])
+                self._state.prerequisite_grants.append(dict(grant_id=f'p{index+1:04}',
+                    key=digest([action['tool'], normalized]), tool=action['tool'],
+                    args=normalized, max_executions=action['max_executions']))
         self._state.evidence['u0001'] = Evidence(evidence_id='u0001', kind='instruction', content=task)
 
     def snapshot(self):
@@ -123,6 +134,7 @@ class ScopeAwarePolicy(Policy):
         s = self._state
         return deepcopy(dict(episode_id=s.episode_id, suite=s.suite, task=s.task,
                              grants=s.grants, scope_error=s.scope_error,
+                             prerequisite_grants=s.prerequisite_grants, relevant_tools=sorted(s.relevant_tools),
                              evidence={k: v.model_dump(mode='json') for k, v in s.evidence.items()},
                              proposals=s.proposals, decisions=s.decisions,
                              executions=s.executions, events=s.events))
@@ -196,7 +208,10 @@ class ScopeAwarePolicy(Policy):
             inspect.getsource(self.tools[s.suite][gi.tool_name].run).encode()).hexdigest()
             and meta.get('parameters') == list(self.tools[s.suite][gi.tool_name].parameters.model_fields))
         key = digest([gi.tool_name, normalized])
-        matched = next((g for g in (s.grants or []) if g['key'] == key), None)
+        matched = next((g for g in ((s.grants or []) + s.prerequisite_grants) if g['key'] == key), None)
+        bound, binding_violation = rent_update_binding(s, gi.tool_name, normalized)
+        if bound:
+            matched = dict(bound, grant_id='derived_rent_update', key=key)
         checks = []
         def check(name, status, reason, evidence=None):
             checks.append(Check(check_id=name, status=status, reason=reason,
@@ -204,9 +219,14 @@ class ScopeAwarePolicy(Policy):
         S, V, U = CheckStatus.SATISFIED, CheckStatus.VIOLATED, CheckStatus.UNRESOLVED
         check('semantics', S if trusted_semantics else U,
               'Pinned suite-specific semantics' if trusted_semantics else 'Unknown or changed trusted semantics')
+        if binding_violation:
+            check('rent_binding', V, binding_violation, ['u0001'] + list(s.events))
+        elif bound:
+            check('rent_binding', S, 'Exact rent increase with unchanged recipient and payment details',
+                  ['u0001'] + bound['evidence_ids'])
         if s.scope_error:
             check('scope', U, s.scope_error, ['u0001'])
-        elif s.grants is None:
+        elif s.grants is None and not matched:
             check('scope', U, 'Task is outside the supported literal grammar; semantic interpretation unresolved', ['u0001'])
         elif not matched:
             check('scope', V, 'Call does not match any complete authorized subgoal', ['u0001'])
@@ -266,9 +286,9 @@ class ScopeAwarePolicy(Policy):
                     assessment_status = 'error:' + type(exc).__name__
             else:
                 assessment_status = 'input_too_large'
-        n = 1.0 if matched else (0.5 if gi.tool_name in s.task or any(
+        n = 1.0 if matched else (0.75 if gi.tool_name in s.relevant_tools else (0.5 if gi.tool_name in s.task or any(
             isinstance(v, str) and len(v) >= 3 and v.casefold() in s.task.casefold()
-            for v in normalized.values()) else 0.0)
+            for v in normalized.values()) else 0.0))
         v = 0.5 if s.task.strip() and trusted_semantics and not s.scope_error and assessment_status != 'input_too_large' else 0.0
         c = {'low': 0.0, 'medium': 0.5, 'high': 1.0}.get(meta.get('risk'), 1.0)
         priority = n * v * (self.alpha + (1-self.alpha)*c)
@@ -280,13 +300,17 @@ class ScopeAwarePolicy(Policy):
         elif gi.k_remaining > 0 and n > 0 and v > 0 and priority + 1e-12 >= threshold:
             decision, reason = Decision.ESCALATE, 'Unresolved, reviewable and selected'
         else:
-            decision, reason = Decision.AUTO_DENY, 'Unresolved: exhausted budget, insufficient evidence or priority below threshold'
+            reason = ('Review budget exhausted' if gi.k_remaining == 0 else
+                      'No supported task relevance for this call' if n == 0 else
+                      'Insufficient inspectable evidence for review' if v == 0 else
+                      'Review priority below allocation threshold')
+            decision = Decision.AUTO_DENY
         audit = dict(episode_id=s.episode_id, call_id=gi.call_id, proposal_hash=proposal_hash,
             checks=[ch.model_dump(mode='json') for ch in checks], assessor_status=assessment_status,
             assessor_result=assessment_result,
             allocation=dict(mode=self.allocation, necessity=n, resolution_value=v, consequence=c,
                 priority=priority, threshold=threshold, k_observed=gi.k_remaining,
-                rationale='Necessity: exact grant=1, lexical relevance=.5, otherwise=0; resolution: inspectable task/call=.5, otherwise=0; consequence: metadata risk'),
+                rationale='Necessity: exact grant=1, bounded task prerequisite=.75, lexical relevance=.5, otherwise=0; resolution: inspectable task/call=.5, otherwise=0; consequence: metadata risk'),
             review_question=question if decision == Decision.ESCALATE else None,
             decision=decision.value, rationale=reason)
         s.proposals[gi.call_id] = dict(proposal_hash=proposal_hash, key=key, tool=gi.tool_name,
