@@ -2,7 +2,7 @@
 
 Review budget grid: $k\in\{0,1,3,5,7,9\}$.
 
-Current scope: **banking only**, per the user's direction on 21 October 2026. AgentDojo is pinned to `0.1.35`, benchmark `v1.2.2`. Local `qwen3:14b` is selected for agent execution, advisory policy assessment and simulated review, with separate prompts/contexts.
+Current scope: **banking only**, per the user's direction on 21 October 2026. AgentDojo is pinned to `0.1.35`, benchmark `v1.2.2`. Local `qwen3:14b` is selected for agent execution, semantic policy assessment and simulated review, with separate prompts/contexts.
 
 Start with the [banking evaluation and submission guide](docs/BANKING_EVALUATION_GUIDE.md). It contains the current Mermaid policy diagrams and justification, LaTeX equations, environment setup, pilot/full-run/resume/analysis commands, required report evidence and presentation checklist. The [readiness audit](docs/BANKING_READINESS_AUDIT.md) records integration fixes, validation and remaining limitations.
 
@@ -12,7 +12,7 @@ The merged code needed repairs before full evaluation: default experiment select
 
 The required policies are full-approve, full-escalate, and our scope-aware policy. The CLI now defaults to banking with both baselines, `hybrid_llm`, and its fixed allocation comparator. Metadata-only and explicit stub variants remain available. Other domains remain supported by shared library code and regression tests, but are outside this study.
 
-R4 findings are **advisory**: they are logged and costed but do not create scope grants or change deterministic decisions. The policy is a conservative exact-grant/bounded-banking-rule implementation, not a general natural-language authorization parser. See the guide for its limitations and experimental implications.
+R4 is **decision-effective** in `hybrid_llm` and `hybrid_llm_fixed`: validated task-grounded conflicts can deny unresolved calls, while supported scope and operation can raise review relevance. Deterministic checks remain authoritative; R4 cannot create grants or execute a call without independent review. See [the combined-policy specification](docs/R3_R4_POLICY.md). The policy is a conservative exact-grant/bounded-banking-rule implementation, not a general natural-language authorization parser. See the guide for its limitations and experimental implications.
 
 ## Execution path
 
@@ -55,4 +55,4 @@ Planning/validation make no model calls. Use the guide's matched pilot before it
 
 ## Source precedence
 
-The latest user scope and course handout govern this study. This README, current guide and audit describe the active implementation. `R3/` contains earlier designs, decisions and experiments, including superseded four-suite scope and commands. Preserve them as historical context; they do not override banking-only execution or prove a benchmark was completed. The five-role ownership remains gate/budget (R1), baselines/reviewer (R2), scope/allocation (R3), advisory assessor (R4), and evaluation/audit/analysis (R5).
+The latest user scope and course handout govern this study. This README, current guide and audit describe the active implementation. `R3/` contains earlier designs, decisions and experiments, including superseded four-suite scope and commands. Preserve them as historical context; they do not override banking-only execution or prove a benchmark was completed. The five-role ownership remains gate/budget (R1), baselines/reviewer (R2), scope/allocation (R3), semantic assessor (R4), and evaluation/audit/analysis (R5).

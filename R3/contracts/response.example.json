@@ -5,5 +5,5 @@
   "proposal_hash": "becc12ed97e88199632a47fbd39f1e76dbda6cca57c79bed523259898d99d525",
   "status": "unavailable",
   "checks": [],
-  "error": "R4 not integrated"
+  "error": "No model assessor configured for this policy"
 }

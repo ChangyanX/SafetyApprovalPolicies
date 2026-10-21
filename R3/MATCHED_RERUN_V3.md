@@ -1,5 +1,7 @@
 # Matched development rerun v3: recovery after blocking an attack
 
+Current implementation update (21 October 2026): live `hybrid_llm` and `hybrid_llm_fixed` use decision-effective R4 review selection and conflict denial, version `r3-r4-review-selection-v1`. They never create grants or bypass deterministic checks/review budgets. Advisory descriptions below apply to the stub ablation or historical stage. See [the combined-policy specification](../docs/R3_R4_POLICY.md) and [current banking guide](../docs/BANKING_EVALUATION_GUIDE.md); rerun pilots in fresh directories.
+
 Budget update (21 October 2026): use $k\in\{0,1,3,5,7,9\}$ for new sweeps. Regenerate manifests and use fresh output directories; recorded historical results below retain their original budgets. See [the current banking guide](../docs/BANKING_EVALUATION_GUIDE.md).
 
 Updated 21 October 2026. Status: ready for the matched development rerun. All 73 unittest checks and 16 existing reviewer regression functions passed. The final three live preflights completed successfully. Preserve all v1/v2 runs. This cohort informed development and cannot establish held-out generalization.

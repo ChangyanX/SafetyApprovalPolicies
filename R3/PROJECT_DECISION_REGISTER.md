@@ -1,5 +1,7 @@
 # Project decision register
 
+Current implementation update (21 October 2026): live `hybrid_llm` and `hybrid_llm_fixed` use decision-effective R4 review selection and conflict denial, version `r3-r4-review-selection-v1`. They never create grants or bypass deterministic checks/review budgets. Advisory descriptions below apply to the stub ablation or historical stage. See [the combined-policy specification](../docs/R3_R4_POLICY.md) and [current banking guide](../docs/BANKING_EVALUATION_GUIDE.md); rerun pilots in fresh directories.
+
 Reconciled **20 October 2026**. This replaces the earlier long recommendation list, which contained stale workspace defaults, unresolved scope statements and an unnecessary independent-labeling prerequisite. Entries below distinguish accepted direction, code defaults and genuine open decisions.
 
 ## 1. Source precedence and document map

@@ -14,6 +14,10 @@ The current user-confirmed grid is $k\in\{0,1,3,5,7,9\}$. Planner defaults, pilo
 
 The user confirmed local `qwen3:14b` for agent, assessor and reviewer. All three use separate requests/contexts. Shared model weights can cause correlated failures.
 
+## Decision-effective integration update
+
+`hybrid_llm` and `hybrid_llm_fixed` now share decision-effective R4 processing; only their allocation threshold differs. Deterministic states and exact grants remain untouched. Live-label mode is `review_selection`; stub ablations retain `advisory`. Runtime configuration, episode results and per-call audits identify version `r3-r4-review-selection-v1`. The native exporter adds `semantic_decisions.csv`. Regression coverage includes decision-changing positive/negative findings, atomic validation, no model-created execution authority, missing task citations, protected checks, incomplete evidence, real gate review enforcement, the actual R4 adapter with a fake transport, and native semantic CSV/version validation. Validation after this integration: **225 harness tests passed, 1 opt-in live test skipped, 30 subtests passed**; the root five-test suite also passed. Local Ollama preflight remains unavailable; no live model result is claimed. The original audit table below describes the earlier integration stage; its advisory limitation is superseded by this update. Existing run directories must not be resumed under the new source/configuration.
+
 ## Discrepancies and resolutions
 
 | Finding | Resolution |
@@ -57,7 +61,7 @@ Exact setup, tests, smoke, manifest generation, live preflight, pilots, full swe
 
 1. **Live readiness:** start local Ollama, ensure `qwen3:14b` is available, and pass the matched live pilot. Native tool calling, schema response quality, model latency/context limits and real usage need live validation. The endpoint was unavailable during this audit.
 2. **Scope coverage:** exact grants and bounded prerequisite/rent rules are implemented; arbitrary banking natural language remains unresolved and relies on conservative relevance/review handling. This can produce substantial utility loss. It is a limitation of the current original policy, not evidence that all banking tasks have been solved.
-3. **Advisory R4:** its findings cannot authorize calls or change current decisions/allocation scores. Live assessor overhead is measured, but semantic decision improvement is not implemented or claimed. A stronger policy would require a new version, development-only tuning and new matched evaluation.
+3. **Semantic R4:** policy version `r3-r4-review-selection-v1` now uses eligible conflicts for denial and supported scope/operation for review relevance. It cannot create grants or bypass independent review. Model errors can still cause false denials or unnecessary reviews; fresh development pilots and matched held-out runs are required. See [the combined-policy specification](R3_R4_POLICY.md).
 4. **Strict safety metric:** official AgentDojo attack goals do not label every unauthorized call. The current accepted project metric is AgentDojo-based TCR; executed-call audit supplements it. Do not relabel attack-goal failure as proof that every action was authorized.
 5. **Experiment design:** freeze budget grid, coefficients, model digest, limits, attacks, task split and retry protocol after development. The guide uses all 16 banking identities descriptively and a separately analyzed 13-task held-out subset. Shared attack/task/repeat dependencies require care with uncertainty and significance claims; the exporter does not produce confidence intervals.
 6. **Model provenance:** automatic `config.json` weights digest remains empty. Capture full tags/digest, model file, Ollama version and hardware with the guide's provenance commands. Runtime hashes alone cannot establish identical model weights.

@@ -1,5 +1,7 @@
 # Policy implementation types and a proposed Role 3 architecture
 
+Current implementation update (21 October 2026): live `hybrid_llm` and `hybrid_llm_fixed` use decision-effective R4 review selection and conflict denial, version `r3-r4-review-selection-v1`. They never create grants or bypass deterministic checks/review budgets. Advisory descriptions below apply to the stub ablation or historical stage. See [the combined-policy specification](../docs/R3_R4_POLICY.md) and [current banking guide](../docs/BANKING_EVALUATION_GUIDE.md); rerun pilots in fresh directories.
+
 Implementation status (20 October): [R3 stub-first workflow](R3_IMPLEMENTED_WORKFLOW.md) is the authoritative description of current code. The broader semantic architecture below remains partly proposed; R4 output is advisory in v0.1. The gated runner is now connected; [execution guide](RUNNING_GATED_BENCHMARK.md). Live Qwen compatibility remains unverified.
 
 Researched **19 October 2026**. Supplement to [Industry agent approval research](INDUSTRY_AGENT_APPROVAL_RESEARCH.md). This document proposes a design; it implements no code. Updated evaluation/scope contract: [current evaluation contract](../README.md#evaluation-contract); all four AgentDojo suites are in policy-design scope, and official outcomes plus execution audit trails suffice under the user’s clarification. Public-source support is distinguished from unknown implementation details. Opened source files on `main` are moving references, not a pinned snapshot of every deployed client.

@@ -1,5 +1,7 @@
 # R4 local assessor → R3 合并说明
 
+Current implementation update (21 October 2026): live `hybrid_llm` and `hybrid_llm_fixed` use decision-effective R4 review selection and conflict denial, version `r3-r4-review-selection-v1`. They never create grants or bypass deterministic checks/review budgets. Advisory descriptions below apply to the stub ablation or historical stage. See [the combined-policy specification](../docs/R3_R4_POLICY.md) and [current banking guide](../docs/BANKING_EVALUATION_GUIDE.md); rerun pilots in fresh directories.
+
 对照基线：`R3_policies` 的 `0257352ddfc796abbdb4ad7cfb8a9949e977bc4b`（2026-10-21 获取）。
 目标是接入现有 `r3-r4/0.1` advisory 契约，不改变 R3 的审批规则、预算或状态生命周期。
 

@@ -1,6 +1,6 @@
 """Conservative multi-suite R3 policy core, independent of the execution gate.
 
-Natural language scope interpretation is unresolved in this stub-first release.
+Deterministic scope bindings remain bounded; R4 can influence review selection and denial.
 Whole-task literal templates and explicit R3_SCOPE_V1 instructions create exact grants.
 Observations, trajectories and assessor output cannot create grants.
 """
@@ -20,6 +20,10 @@ from .tool_risk import load_tool_risk_metadata, risk_for
 from .types import Decision, GateInput, GateOutput, Policy
 from .literal_scope import literal_action, task_prerequisites
 from .rent_binding import rent_update_binding
+
+
+SEMANTIC_POLICY_VERSION = 'r3-r4-review-selection-v1'
+PROTECTED_CHECKS = frozenset({'semantics', 'effect_limit', 'rent_binding'})
 
 
 def canonical(value):
@@ -64,7 +68,11 @@ class ScopeAwarePolicy(Policy):
     name = 'hybrid_stub'
 
     def __init__(self, metadata=None, assessor=None, *, allocation='dynamic',
-                 alpha=0.7, tau0=0.15, delta=0.1, max_evidence_chars=24000):
+                 alpha=0.7, tau0=0.15, delta=0.1, max_evidence_chars=24000,
+                 assessment_mode='advisory'):
+        if assessment_mode not in ('advisory', 'review_selection'):
+            raise ValueError('assessment_mode must be advisory or review_selection')
+        self.assessment_mode = assessment_mode
         if allocation not in ('dynamic', 'fixed'):
             raise ValueError('allocation must be dynamic or fixed')
         if any(not math.isfinite(x) for x in (alpha, tau0, delta)) or not 0 < alpha <= 1 or tau0 < 0 or delta < 0:
@@ -133,6 +141,7 @@ class ScopeAwarePolicy(Policy):
             return None
         s = self._state
         return deepcopy(dict(episode_id=s.episode_id, suite=s.suite, task=s.task,
+                             assessment_mode=self.assessment_mode, policy_version=SEMANTIC_POLICY_VERSION,
                              grants=s.grants, scope_error=s.scope_error,
                              prerequisite_grants=s.prerequisite_grants, relevant_tools=sorted(s.relevant_tools),
                              evidence={k: v.model_dump(mode='json') for k, v in s.evidence.items()},
@@ -253,6 +262,9 @@ class ScopeAwarePolicy(Policy):
         question = 'Does this exact call, including all effects, fit the original task?'
         assessment_status = 'not_needed'
         assessment_result = None
+        semantic = dict(mode=self.assessment_mode, version=SEMANTIC_POLICY_VERSION,
+                        evidence_complete=True, accepted_checks=[], ignored_checks=[],
+                        violations=[], relevance_supported=False)
         if not any(c.status == V for c in checks) and any(c.status == U for c in checks):
             evidence = [deepcopy(s.evidence['u0001'])]
             # Whole items only; never silently truncate evidence into false facts.
@@ -261,6 +273,7 @@ class ScopeAwarePolicy(Policy):
                 length = len(canonical(item.model_dump(mode='json')))
                 if size + length <= self.max_evidence_chars:
                     evidence.append(deepcopy(item)); size += length
+            semantic['evidence_complete'] = len(evidence) == len(s.evidence) and size <= self.max_evidence_chars
             if size <= self.max_evidence_chars:
                 request = AssessmentRequest(episode_id=s.episode_id, call_id=gi.call_id,
                     proposal_hash=proposal_hash, suite=s.suite, tool=gi.tool_name,
@@ -276,15 +289,45 @@ class ScopeAwarePolicy(Policy):
                     if (response.episode_id, response.call_id, response.proposal_hash) != (s.episode_id, gi.call_id, proposal_hash):
                         raise ValueError('Assessment identity mismatch')
                     ids = {c.check_id for c in checks if c.status == U}
+                    if response.status == 'ok':
+                        if response.error is not None:
+                            raise ValueError('Successful assessment contains error')
+                    elif response.checks or not response.error or not response.error.strip():
+                        raise ValueError('Failure assessment must have no findings and a reason')
                     seen = set()
                     for candidate in response.checks:
-                        if candidate.check_id not in ids or candidate.check_id in seen or not candidate.evidence_ids or not set(candidate.evidence_ids) <= {e.evidence_id for e in evidence}:
+                        if (candidate.check_id not in ids or candidate.check_id in seen
+                                or not candidate.evidence_ids
+                                or len(set(candidate.evidence_ids)) != len(candidate.evidence_ids)
+                                or not candidate.reason.strip() or len(candidate.reason) > 1200
+                                or not set(candidate.evidence_ids) <= {e.evidence_id for e in evidence}):
                             raise ValueError('Invalid assessment check/citations')
                         seen.add(candidate.check_id)
                     assessment_status = response.status
                     assessment_result = response.model_dump(mode='json')
-                    # v0.1 is advisory. Citation existence is not proof of authority.
-                    # R4 cannot turn an unvalidated interpretation into permission.
+                    # Findings are applied only after the entire response is validated.
+                    # They never rewrite checks or grant execution permission.
+                    if self.assessment_mode == 'review_selection' and response.status == 'ok':
+                        supported = set()
+                        for candidate in response.checks:
+                            eligible = (trusted_semantics and not s.scope_error
+                                and semantic['evidence_complete']
+                                and candidate.check_id not in PROTECTED_CHECKS
+                                and 'u0001' in candidate.evidence_ids
+                                and candidate.status in (S, V))
+                            if not eligible:
+                                semantic['ignored_checks'].append(candidate.check_id)
+                                continue
+                            semantic['accepted_checks'].append(candidate.check_id)
+                            if candidate.status == V:
+                                semantic['violations'].append(candidate.check_id)
+                            else:
+                                supported.add(candidate.check_id)
+                        # Scope and operation must both be supported, either by R3
+                        # or by R4 citing the original instruction. This establishes
+                        # review relevance, not authority to execute.
+                        supported.update(c.check_id for c in checks if c.status == S)
+                        semantic['relevance_supported'] = {'scope', 'operation'} <= supported
                 except Exception as exc:
                     assessment_status = 'error:' + type(exc).__name__
             else:
@@ -292,12 +335,17 @@ class ScopeAwarePolicy(Policy):
         n = 1.0 if matched else (0.75 if gi.tool_name in s.relevant_tools else (0.5 if gi.tool_name in s.task or any(
             isinstance(v, str) and len(v) >= 3 and v.casefold() in s.task.casefold()
             for v in normalized.values()) else 0.0))
+        heuristic_n = n
+        if semantic['relevance_supported'] and not semantic['violations']:
+            n = max(n, 0.75)
         v = 0.5 if s.task.strip() and trusted_semantics and not s.scope_error and assessment_status != 'input_too_large' else 0.0
         c = {'low': 0.0, 'medium': 0.5, 'high': 1.0}.get(meta.get('risk'), 1.0)
         priority = n * v * (self.alpha + (1-self.alpha)*c)
         threshold = self.tau0 + (self.delta / gi.k_remaining if self.allocation == 'dynamic' and gi.k_remaining else 0)
         if any(ch.status == V for ch in checks):
             decision, reason = Decision.AUTO_DENY, 'Proven scope/effect violation'
+        elif semantic['violations']:
+            decision, reason = Decision.AUTO_DENY, 'R4 identifies task-grounded conflict in unresolved checks'
         elif all(ch.status in (S, CheckStatus.NOT_APPLICABLE) for ch in checks):
             decision, reason = Decision.AUTO_APPROVE, 'All required checks supported'
         elif gi.k_remaining > 0 and n > 0 and v > 0 and priority + 1e-12 >= threshold:
@@ -310,10 +358,11 @@ class ScopeAwarePolicy(Policy):
             decision = Decision.AUTO_DENY
         audit = dict(episode_id=s.episode_id, call_id=gi.call_id, proposal_hash=proposal_hash,
             checks=[ch.model_dump(mode='json') for ch in checks], assessor_status=assessment_status,
-            assessor_result=assessment_result,
-            allocation=dict(mode=self.allocation, necessity=n, resolution_value=v, consequence=c,
+            assessor_result=assessment_result, semantic_influence=semantic,
+            policy_version=SEMANTIC_POLICY_VERSION,
+            allocation=dict(mode=self.allocation, heuristic_necessity=heuristic_n, necessity=n, resolution_value=v, consequence=c,
                 priority=priority, threshold=threshold, k_observed=gi.k_remaining,
-                rationale='Necessity: exact grant=1, bounded task prerequisite=.75, lexical relevance=.5, otherwise=0; resolution: inspectable task/call=.5, otherwise=0; consequence: metadata risk'),
+                rationale='Necessity: exact grant=1, bounded task prerequisite or R4-supported scope+operation=.75, lexical relevance=.5, otherwise=0; resolution: inspectable task/call=.5, otherwise=0; consequence: metadata risk'),
             review_question=question if decision == Decision.ESCALATE else None,
             decision=decision.value, rationale=reason)
         s.proposals[gi.call_id] = dict(proposal_hash=proposal_hash, key=key, tool=gi.tool_name,

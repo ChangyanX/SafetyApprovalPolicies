@@ -19,7 +19,7 @@ python -m src.run_experiments --check --model qwen3:14b
 
 The last command requires a running local Ollama server and downloaded model. It makes no benchmark calls. Do the guide's matched pilot before running the full manifest.
 
-Current execution uses `GatedAgentPipeline` through `build_pipeline`, with a fresh pipeline/environment/budget for each manifest row. Supply `suite_name='banking'` when constructing a pipeline directly. Full-approve and full-escalate share this executor with the original scope policy. `hybrid_llm` and `hybrid_llm_fixed` wire R4 with policy usage records; its findings remain advisory and cannot create authorization grants.
+Current execution uses `GatedAgentPipeline` through `build_pipeline`, with a fresh pipeline/environment/budget for each manifest row. Supply `suite_name='banking'` when constructing a pipeline directly. Full-approve and full-escalate share this executor with the original scope policy. `hybrid_llm` and `hybrid_llm_fixed` wire R4 with policy usage records; eligible findings can deny unresolved conflicts or raise review relevance, but cannot create grants, override deterministic checks or bypass independent review. See [the combined-policy specification](../docs/R3_R4_POLICY.md).
 
 Use `src.r3_compare` and `src.banking_report` for native connected logs. `src.gate`, `src.metrics`, `src.analyze_results`, `ExperimentLogger` and `CostTracker` retain their standalone/legacy interfaces for tests and old logs; their schemas are not the connected runner's schema. Raw clean `security=True` must never be interpreted as attack success or general safety.
 

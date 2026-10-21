@@ -25,6 +25,7 @@ from .policy import make_policy, POLICY_LABELS
 from .reviewer import LLMReviewer
 from .r4_assessor import LocalR3Assessor
 from .llm_judge import JudgeConfig
+from .scope_policy import SEMANTIC_POLICY_VERSION
 from .tool_risk import load_tool_risk_metadata
 
 IDENTITY = ('episode_id','benchmark_version','suite','user_task_id','condition','attack',
@@ -151,7 +152,9 @@ def execute_episode(row, episode_dir, *, model='qwen3:14b', base_url='http://loc
         result.update(status='error',error=type(exc).__name__+': '+str(exc)[:2000])
     finally:
         if pipeline:
-            result.update(review_count=pipeline.review_count,executed_calls=deepcopy(pipeline.executed_calls),
+            result.update(policy_version=SEMANTIC_POLICY_VERSION,
+                          assessment_mode=getattr(pipeline.policy,'assessment_mode',None),
+                          review_count=pipeline.review_count,executed_calls=deepcopy(pipeline.executed_calls),
                           turns=pipeline.turns,k_remaining=pipeline.k_remaining)
             write_json(episode_dir/'trajectory.json',dict(
                 full_runtime_messages=jsonable(pipeline.messages),
@@ -263,7 +266,8 @@ def main(argv=None):
     config=dict(model=args.model,base_url=args.base_url,timeout=args.timeout,attempts=args.attempts,
         max_turns=args.max_turns,max_tool_calls=args.max_tool_calls,max_tokens=args.max_tokens,
         seed=args.seed,policy_options=policy_options,model_weights_digest=None,
-        agent_reasoning_effort='none',
+        agent_reasoning_effort='none', semantic_policy_version=SEMANTIC_POLICY_VERSION,
+        semantic_assessment_mode='review_selection for hybrid_llm; advisory for hybrid_stub',
         reviewer_protocol=dict(max_format_repairs=1, max_tokens=512, no_think=True,
             repair_budget='one consultation; all HTTP attempts logged'),
         benchmark_package=version('agentdojo'),source_fingerprints=source_fingerprints(),

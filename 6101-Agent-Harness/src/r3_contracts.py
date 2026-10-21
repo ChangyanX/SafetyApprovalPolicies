@@ -59,4 +59,4 @@ class StubAssessor:
     def assess(self, request: AssessmentRequest) -> AssessmentResponse:
         return AssessmentResponse(episode_id=request.episode_id, call_id=request.call_id,
                                   proposal_hash=request.proposal_hash, status='unavailable',
-                                  error='R4 not integrated')
+                                  error='No model assessor configured for this policy')

@@ -1,4 +1,4 @@
-"""Advisory R3/R4 v0.1 assessor. No scope grants, decisions or budget mutation."""
+"""Per-check R3/R4 v0.1 assessor. No scope grants, decisions or budget mutation."""
 import hashlib
 import json
 from time import perf_counter
@@ -23,7 +23,7 @@ class AssessmentTrace(JudgeTrace):
 
 
 class LocalR3Assessor(LocalLLMJudge):
-    """Inject into ScopeAwarePolicy(assessor=...). Model findings stay advisory.
+    """Inject into ScopeAwarePolicy(assessor=...). R3 controls how validated findings influence review selection.
 
     Only last_trace is retained. on_trace can persist per-call cost records;
     callback errors propagate (do not silently lose an audit record).

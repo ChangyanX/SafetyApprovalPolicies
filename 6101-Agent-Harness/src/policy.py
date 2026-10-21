@@ -48,9 +48,11 @@ def make_policy(label: str, tool_risk_metadata=None, suite_name=None, *, policy_
         from .scope_policy import ScopeAwarePolicy
         if label.startswith("hybrid_llm") and not (policy_options or {}).get("assessor"):
             raise ValueError("hybrid_llm requires an explicit live assessor")
+        options = dict(policy_options or {})
+        options['assessment_mode'] = 'review_selection' if label.startswith('hybrid_llm') else 'advisory'
         policy = ScopeAwarePolicy(metadata=tool_risk_metadata,
                                 allocation="fixed" if label.endswith("_fixed") else "dynamic",
-                                **(policy_options or {}))
+                                **options)
         policy.name = label
         return policy
     if label in POLICIES:

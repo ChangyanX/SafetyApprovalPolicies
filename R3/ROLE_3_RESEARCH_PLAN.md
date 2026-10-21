@@ -1,5 +1,7 @@
 # Role 3: scope-aware policy implementation and evaluation plan
 
+Current implementation update (21 October 2026): live `hybrid_llm` and `hybrid_llm_fixed` use decision-effective R4 review selection and conflict denial, version `r3-r4-review-selection-v1`. They never create grants or bypass deterministic checks/review budgets. Advisory descriptions below apply to the stub ablation or historical stage. See [the combined-policy specification](../docs/R3_R4_POLICY.md) and [current banking guide](../docs/BANKING_EVALUATION_GUIDE.md); rerun pilots in fresh directories.
+
 Updated **20 October 2026** after checking the team repository and AgentDojo. The latest accepted policy scope includes workspace, travel, banking and Slack; earlier banking-only direction is superseded. See [multi-domain scope](MULTI_DOMAIN_POLICY_SCOPE.md). This replaces obsolete workspace-pilot defaults and claims that all team components remain unimplemented.
 
 **Detailed implementation guide:** [Multi-domain checks, state/evidence contracts, R4 handoff and baseline runbook](ROLE_3_IMPLEMENTATION_AND_BASELINE_RUNBOOK.md). Existing commands are distinguished from proposed runner interfaces.

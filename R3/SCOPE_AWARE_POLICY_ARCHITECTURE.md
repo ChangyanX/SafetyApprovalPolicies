@@ -1,5 +1,7 @@
 # Proposed policy: scope-aware heuristics and selective, budget-aware review
 
+Current implementation update (21 October 2026): live `hybrid_llm` and `hybrid_llm_fixed` use decision-effective R4 review selection and conflict denial, version `r3-r4-review-selection-v1`. They never create grants or bypass deterministic checks/review budgets. Advisory descriptions below apply to the stub ablation or historical stage. See [the combined-policy specification](../docs/R3_R4_POLICY.md) and [current banking guide](../docs/BANKING_EVALUATION_GUIDE.md); rerun pilots in fresh directories.
+
 Full design proposal, revised **20 October 2026**. A bounded literal-rule/state/allocation/stub core is implemented; semantic scope extraction remains pending. The gated execution runner is connected; live model compatibility remains unverified. See [implemented behavior and limits](R3_IMPLEMENTED_WORKFLOW.md). No empirical performance is claimed. This is the internal architecture of the approval policy, not a team workflow or a generic agent harness. It supersedes the high-level policy sketch in the earlier architecture supplement. Numerical examples are illustrative development candidates.
 
 ## 1. What this policy computes

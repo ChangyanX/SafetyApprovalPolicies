@@ -11,6 +11,7 @@ from pathlib import Path
 
 from .r3_compare import compare
 from .experiment_config import DEFAULT_K_VALUES
+from .scope_policy import SEMANTIC_POLICY_VERSION
 
 
 def read_jsonl(path):
@@ -50,12 +51,17 @@ def analyze(run_dir, output_dir, *, exclude_tasks=None):
     report['excluded_user_tasks'] = sorted(exclude_tasks or [])
     observed = {r['episode_id']: r for r in results}
     issues, candidates, reviews, cost_rows, assessor_rows = [], [], [], [], []
+    semantic_rows = []
     usage_groups = defaultdict(list)
     for row in manifest:
         eid = row['episode_id']
         result = observed.get(eid)
         if result is None:
             continue
+        if row['policy'].startswith('hybrid_llm') and result['status']=='ok' and (
+                result.get('policy_version') != SEMANTIC_POLICY_VERSION
+                or result.get('assessment_mode') != 'review_selection'):
+            issues.append(f'{eid}: old or missing semantic policy identity; run a fresh versioned cohort')
         folder = run_dir/'episodes'/eid
         events = read_jsonl(folder/'audit.jsonl')
         usage = [u for u in read_jsonl(folder/'usage.jsonl')
@@ -85,6 +91,28 @@ def analyze(run_dir, output_dir, *, exclude_tasks=None):
         verdicts = {e['call_id']: e for e in events if e['kind'] == 'review_result'}
         decisions = {e['call_id']: e for e in events if e['kind'] == 'gate_decision'}
         proposals = {e['call_id']: e for e in events if e['kind'] == 'proposal'}
+        for cid, decision in decisions.items():
+            audit = decision.get('policy_audit') or {}
+            influence = audit.get('semantic_influence')
+            if not influence:
+                continue
+            if row['policy'].startswith('hybrid_llm') and (
+                    influence['mode'] != 'review_selection'
+                    or influence['version'] != SEMANTIC_POLICY_VERSION):
+                issues.append(f'{eid}: semantic policy version/mode mismatch')
+            allocation = audit['allocation']
+            semantic_rows.append(dict(episode_id=eid, call_id=cid, policy=row['policy'],
+                k=row['k'], condition=row['condition'], version=influence['version'],
+                mode=influence['mode'], evidence_complete=influence['evidence_complete'],
+                accepted_checks=';'.join(influence['accepted_checks']),
+                ignored_checks=';'.join(influence['ignored_checks']),
+                semantic_violations=';'.join(influence['violations']),
+                relevance_supported=influence['relevance_supported'],
+                heuristic_necessity=allocation['heuristic_necessity'],
+                effective_necessity=allocation['necessity'], priority=allocation['priority'],
+                threshold=allocation['threshold'], decision=decision['decision'],
+                reviewer_consulted=decision['reviewed'], approved=decision['approved'],
+                executed=cid in {c['call_id'] for c in result['executed_calls']}))
         for event in started:
             cid = event['call_id']
             verdict = verdicts.get(cid, {})
@@ -158,6 +186,7 @@ def analyze(run_dir, output_dir, *, exclude_tasks=None):
     write_csv(output_dir/'component_costs.csv', cost_rows)
     write_csv(output_dir/'review_outcomes.csv', reviews)
     write_csv(output_dir/'assessor_status.csv', assessor_rows)
+    write_csv(output_dir/'semantic_decisions.csv', semantic_rows)
     by_tool = defaultdict(list)
     for review in reviews:
         by_tool[(review['policy'],int(review['k']),review['condition'],review['tool'])].append(review)

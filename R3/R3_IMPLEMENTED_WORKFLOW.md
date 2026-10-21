@@ -1,4 +1,6 @@
-# R3 implementation: workflow, rationale and demonstration
+# Stub/rules ablation: R3 implementation: workflow, rationale and demonstration
+
+Current implementation update (21 October 2026): live `hybrid_llm` and `hybrid_llm_fixed` use decision-effective R4 review selection and conflict denial, version `r3-r4-review-selection-v1`. They never create grants or bypass deterministic checks/review budgets. Advisory descriptions below apply to the stub ablation or historical stage. See [the combined-policy specification](../docs/R3_R4_POLICY.md) and [current banking guide](../docs/BANKING_EVALUATION_GUIDE.md); rerun pilots in fresh directories.
 
 Updated 20 October 2026. This describes the **implemented stub-first core**, not a model benchmark improvement claim. The gated execution runner is now connected; see [execution commands](RUNNING_GATED_BENCHMARK.md). Policy scope covers workspace, travel, banking and Slack. The registered signatures and source fingerprints are checked against the installed benchmark; scope interpretation remains deliberately bounded.
 
