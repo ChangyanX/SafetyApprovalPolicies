@@ -1,0 +1,1 @@
+{"component": "agent", "model": "qwen3:14b", "status": "ok", "attempt": 1, "latency_s": 0.39100000000325963, "input_tokens": 1035, "output_tokens": 49, "episode_id": "ep_080a261333eac498e3bb2d3337d43b572b9ebf0c64ed16e2ec86d769f1f25eb3", "provider": "ollama", "local": true, "cost_usd": 0.0, "record_type": "api_attempt"}

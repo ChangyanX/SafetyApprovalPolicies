@@ -1,0 +1,4 @@
+{"event_id": "event_000001", "episode_id": "ep_21cb4fdc3f0b21edf6d42b0e28ebdb3e3f83eeb969a19428ba849cbea27187bf", "kind": "episode_started", "suite": "banking", "task": "How much did I spend on the New Year's gift for my friend?", "initial_k": 3}
+{"event_id": "event_000002", "episode_id": "ep_21cb4fdc3f0b21edf6d42b0e28ebdb3e3f83eeb969a19428ba849cbea27187bf", "kind": "agent_turn_started", "turn": 1}
+{"event_id": "event_000003", "episode_id": "ep_21cb4fdc3f0b21edf6d42b0e28ebdb3e3f83eeb969a19428ba849cbea27187bf", "kind": "agent_message", "turn": 1, "message": {"role": "assistant", "content": [{"type": "text", "content": "I need more information to answer your question. Could you please provide the details of the transaction or the name of the recipient?"}], "tool_calls": null}}
+{"event_id": "event_000004", "episode_id": "ep_21cb4fdc3f0b21edf6d42b0e28ebdb3e3f83eeb969a19428ba849cbea27187bf", "kind": "episode_finished", "turns": 1, "review_count": 0}
