@@ -81,3 +81,35 @@ def test_duplicate_selection_and_master_disagreement_rejected(tmp_path):
     other=tmp_path/'wrong.csv';save_plan_csv(rows,other)
     with pytest.raises(ValueError,match='master manifest'):
         analyze_runs(roots,tmp_path/'analysis',master_manifest=other)
+
+
+def test_provenance_error_identifies_runs_and_changed_source(tmp_path):
+    roots,master=study(tmp_path)
+    path=roots[2]/'config.json'
+    config=json.loads(path.read_text())
+    config['source_fingerprints']['prompts/reviewer.txt']='changed'
+    path.write_text(json.dumps(config))
+    with pytest.raises(ValueError) as error:
+        analyze_runs(roots,tmp_path/'analysis',master_manifest=master)
+    message=str(error.value)
+    assert str(roots[2]) in message and str(roots[0]) in message
+    assert 'source_fingerprints.prompts/reviewer.txt' in message
+    assert 'do not edit frozen config.json' in message
+    assert not (tmp_path/'analysis').exists()
+
+
+def test_exploratory_config_override_records_differences(tmp_path,monkeypatch):
+    roots,master=study(tmp_path)
+    path=roots[2]/'config.json'
+    config=json.loads(path.read_text())
+    config['source_fingerprints']['fixture']='changed'
+    path.write_text(json.dumps(config))
+    original=path.read_bytes()
+    monkeypatch.setattr('src.banking_report.plot',lambda *args:None)
+    report=analyze_runs(roots,tmp_path/'analysis',master_manifest=master,allow_config_mismatch=True)
+    assert report['complete'] and not report['comparison_ready']
+    assert report['config_mismatches']==[dict(run_dir=str(roots[2]),reference_run_dir=str(roots[0]),
+        differing_fields=['source_fingerprints.fixture'])]
+    assert 'exploratory' in report['comparison_issues'][0]
+    assert json.loads((tmp_path/'analysis/summary.json').read_text())['config_mismatches']==report['config_mismatches']
+    assert path.read_bytes()==original
