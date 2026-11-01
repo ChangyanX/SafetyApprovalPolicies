@@ -224,3 +224,9 @@ __marimo__/
 
 */runs/provenance
 */runs/banking-offline-smoke
+*/runs/banking-semantic-v1-pilot-small-hybrid_llm
+# */runs/banking-semantic-v1-full-hybrid_llm
+# */runs/banking-semantic-v1-full-full_approve
+# */runs/banking-semantic-v1-full-full_escalate
+# */runs/banking-semantic-v1-full-hybrid_llm_fixed
+# */runs/analysis-banking-semantic-v1-full

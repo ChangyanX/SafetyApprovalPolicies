@@ -34,7 +34,8 @@ def analyze(run_dir, output_dir, *, exclude_tasks=None):
     return analyze_runs([run_dir], output_dir, exclude_tasks=exclude_tasks)
 
 
-def analyze_runs(run_dirs, output_dir, *, exclude_tasks=None, master_manifest=None):
+def analyze_runs(run_dirs, output_dir, *, exclude_tasks=None, master_manifest=None,
+                 allow_config_mismatch=False):
     """Compare disjoint run partitions without copying or modifying raw evidence."""
     roots = [Path(root).resolve() for root in run_dirs]
     output_dir = Path(output_dir).resolve()
@@ -44,6 +45,8 @@ def analyze_runs(run_dirs, output_dir, *, exclude_tasks=None, master_manifest=No
         raise ValueError('Analysis output must be outside the immutable run directory')
     manifest, results, episode_roots, sources = [], [], {}, []
     shared_config = None
+    shared_config_root = None
+    config_mismatches = []
     for root in roots:
         with (root/'manifest.csv').open(encoding='utf-8-sig', newline='') as file:
             rows = list(csv.DictReader(file))
@@ -64,8 +67,30 @@ def analyze_runs(run_dirs, output_dir, *, exclude_tasks=None, master_manifest=No
                 raise ValueError('Source configuration episode IDs disagree with its frozen manifest')
             normalized = {key:value for key,value in config.items() if key != 'episode_ids'}
             if shared_config is not None and normalized != shared_config:
-                raise ValueError('Input model/runtime/source/prompt/policy configurations differ')
-            shared_config = normalized
+                differences = []
+                for key in sorted(shared_config.keys() | normalized.keys()):
+                    if shared_config.get(key) == normalized.get(key):
+                        continue
+                    if key == 'source_fingerprints':
+                        before, after = shared_config.get(key), normalized.get(key)
+                        if isinstance(before, dict) and isinstance(after, dict):
+                            differences.extend(f'{key}.{path}' for path in sorted(before.keys() | after.keys())
+                                               if before.get(path) != after.get(path))
+                            continue
+                    differences.append(key)
+                message = (
+                    'Input model/runtime/source/prompt/policy configurations differ: '
+                    f'{root} versus {shared_config_root}; differing fields: '
+                    + ', '.join(differences)
+                    + '. Rerun incompatible partitions with matching configurations in new run directories; '
+                    'do not edit frozen config.json provenance.')
+                if not allow_config_mismatch:
+                    raise ValueError(message + ' Use --allow-config-mismatch for exploratory analysis.')
+                config_mismatches.append(dict(run_dir=str(root), reference_run_dir=str(shared_config_root),
+                    differing_fields=differences))
+            if shared_config is None:
+                shared_config = normalized
+                shared_config_root = root
         sources.append(dict(run_dir=str(root), planned=len(rows), observed=len(records),
             config_sha256=hashlib.sha256(config_path.read_bytes()).hexdigest() if config else None))
         manifest.extend(rows); results.extend(records)
@@ -94,6 +119,7 @@ def analyze_runs(run_dirs, output_dir, *, exclude_tasks=None, master_manifest=No
         report = compare(manifest, results)
     report['excluded_user_tasks'] = sorted(exclude_tasks or [])
     report['source_runs'] = sources
+    report['config_mismatches'] = config_mismatches
     report['master_manifest'] = str(master_manifest) if master_manifest is not None else None
     observed = {r['episode_id']: r for r in results}
     issues, candidates, reviews, cost_rows, assessor_rows = [], [], [], [], []
@@ -203,7 +229,7 @@ def analyze_runs(run_dirs, output_dir, *, exclude_tasks=None, master_manifest=No
     for row in manifest:
         cells[(row['policy'],int(row['k']),row['condition'])].add(
             (row['user_task_id'],row['attack'],row['injection_task_id'],str(row['repeat'])))
-    comparison_issues = []
+    comparison_issues = ['Input configurations differ; exploratory comparison only'] if config_mismatches else []
     policies = {r['policy'] for r in manifest}
     if not {'full_approve','full_escalate'} <= policies or not any(p.startswith('hybrid_') for p in policies):
         comparison_issues.append('Study does not contain both required baselines and an original policy')
@@ -303,10 +329,15 @@ def main(argv=None):
     parser.add_argument('--manifest',type=Path,help='Frozen master plan; omitted partitions remain missing')
     parser.add_argument('--output-dir',type=Path,required=True)
     parser.add_argument('--allow-incomplete',action='store_true',help='Export diagnostic pilot/error results with exit code zero')
+    parser.add_argument('--allow-config-mismatch',action='store_true',
+        help='Export exploratory comparisons across differing configurations; record differences in summary.json')
     parser.add_argument('--exclude-task', action='append', default=[], help='Exclude development identities from a held-out analysis')
     args=parser.parse_args(argv)
-    report=analyze_runs(args.run_dir,args.output_dir,exclude_tasks=args.exclude_task,master_manifest=args.manifest)
+    report=analyze_runs(args.run_dir,args.output_dir,exclude_tasks=args.exclude_task,master_manifest=args.manifest,
+        allow_config_mismatch=args.allow_config_mismatch)
     print(f"Complete: {report['complete']}; comparison ready: {report['comparison_ready']}; groups: {len(report['groups'])}; audit issues: {len(report['audit_issues'])}")
+    if report['config_mismatches']:
+        print('Exploratory comparison: input configurations differ; details recorded in summary.json')
     return 0 if (report['complete'] and report['comparison_ready']) or args.allow_incomplete else 2
 
 
